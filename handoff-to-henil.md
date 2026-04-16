@@ -31,3 +31,25 @@ Your next primary objective is to complete the tasks outlined in `work-henil.md`
    - Wire the "Red Sea Closure" demo trigger button to the API to simulate the high risk scenario.
 
 > **AI Note:** You can read `./work-henil.md` and `./rules.md` to see exactly what dependencies and strict boundaries we share. **Do not modify the `backend/` directory.** You own `frontend/`, `blockchain/`, and `fortress/`. Good luck!
+
+---
+
+## Demo Readiness & UI Polish Completed by Dev B (Henil)
+
+The React frontend has been fully polished and configured for the hackathon demo.
+
+### What Was Done
+1. **Glassmorphism & Rich Aesthetics**: The `App` dashboard, `GlobalMap`, and `InventoryDashboard` components were overhauled with polished Tailwind dark/cyber styling, glassmorphism (`backdrop-blur`), and dynamic glowing visual effects.
+2. **Demo Scenario Implemented**: The Red Sea Closure scenario is fully wired up in the UI. Clicking the "Inject Red Sea Closure" button properly sets the system states:
+   - Updates the live threat intel and highlights the node visually as a critical risk factor.
+   - Triggers dynamic re-routing of the core freight paths (shifting from Suez map arcs to Cape of Good Hope visual arcs).
+   - Generates simulated logs for FORTRESS and NAVIGATOR responses within the dashboard's "Ledger Events" panel.
+
+### How to Run the Demo
+1. Open a terminal and navigate to the root frontend directory: `cd frontend`
+2. Install dependencies: `npm install`
+3. Start the dev server: `npm run dev` (or `npm start` depending on setup)
+4. Access the dashboard via `localhost:5173` (or the respective port indicated).
+5. Click the prominent `Inject Red Sea Closure` button under the DEMO CONTROL panel to showcase the autonomous supply chain intelligence in action.
+
+The Minimal Prototype frontend is fully ready for the demo pitch!
