@@ -1,35 +1,109 @@
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
-export const InventoryDashboard = ({ stockData = [], demandData = [] }: { stockData: any[], demandData: any[] }) => {
+interface StockItem {
+  sku_id: string;
+  current_stock: number;
+  recommended_stock: number;
+  po_info?: { po_triggered: boolean; po_quantity: number };
+}
+
+interface DemandItem {
+  node: string;
+  demand_variance: number;
+}
+
+interface InventoryDashboardProps {
+  stockData?: StockItem[];
+  demandData?: DemandItem[];
+}
+
+const tooltipStyle = {
+  backgroundColor: '#111111',
+  border: '1px solid #222222',
+  borderRadius: '0px',
+  fontSize: '11px',
+  fontFamily: '"Space Grotesk", system-ui',
+  color: '#e5e5e5',
+};
+
+export const InventoryDashboard = ({ stockData = [], demandData = [] }: InventoryDashboardProps) => {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-2">
-      <div className="bg-stone-900 border border-stone-800 rounded-lg p-5">
-        <h3 className="text-sm font-bold mb-4 text-stone-200 font-mono tracking-wider">STOCK INTELLIGENCE</h3>
-        <div className="h-[220px]">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-nexus-border">
+      {/* Stock Chart */}
+      <div className="nexus-panel p-5">
+        <div className="nexus-label mb-4">STOCK LEVELS</div>
+        <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stockData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#292524" vertical={false} />
-              <XAxis dataKey="sku_id" stroke="#78716c" tick={{fontSize: 10}} />
-              <YAxis stroke="#78716c" tick={{fontSize: 10}} />
-              <Tooltip contentStyle={{ backgroundColor: '#1c1917', border: '1px solid #292524', borderRadius: '4px', fontSize: '12px' }} />
-              <Legend iconType="circle" wrapperStyle={{fontSize: '10px', paddingTop: '10px'}} />
-              <Line type="monotone" name="Safety Stock" dataKey="safety_stock" stroke="#a8a29e" strokeWidth={2} dot={false} activeDot={{r: 4}} />
-              <Line type="monotone" name="Current Stock" dataKey="current_stock" stroke="#44403c" strokeWidth={2} dot={false} />
+              <CartesianGrid stroke="#1a1a1a" vertical={false} />
+              <XAxis
+                dataKey="sku_id"
+                stroke="#444"
+                tick={{ fontSize: 10, fontFamily: '"Space Grotesk"', fill: '#666' }}
+                axisLine={{ stroke: '#222' }}
+                tickLine={false}
+              />
+              <YAxis
+                stroke="#444"
+                tick={{ fontSize: 10, fontFamily: '"Space Grotesk"', fill: '#666' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: '#333' }} />
+              <Line
+                type="monotone"
+                name="Current"
+                dataKey="current_stock"
+                stroke="#e5e5e5"
+                strokeWidth={2}
+                dot={{ r: 3, fill: '#e5e5e5', strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: '#fff' }}
+              />
+              <Line
+                type="monotone"
+                name="Recommended"
+                dataKey="recommended_stock"
+                stroke="#666"
+                strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
+        {/* PO Status Indicators */}
+        <div className="mt-3 flex gap-4">
+          {stockData.map((s) => (
+            <div key={s.sku_id} className="flex items-center gap-2 text-[10px] font-grotesk text-nexus-muted tracking-wider">
+              <span className={`w-1.5 h-1.5 inline-block ${s.po_info?.po_triggered ? 'bg-white' : 'bg-nexus-subtle'}`}></span>
+              {s.sku_id}: PO {s.po_info?.po_triggered ? 'ACTIVE' : 'IDLE'}
+            </div>
+          ))}
+        </div>
       </div>
-      
-      <div className="bg-stone-900 border border-stone-800 rounded-lg p-5">
-        <h3 className="text-sm font-bold mb-4 text-stone-200 font-mono tracking-wider">DEMAND VARIANCE</h3>
-        <div className="h-[220px]">
+
+      {/* Demand Variance Chart */}
+      <div className="nexus-panel p-5">
+        <div className="nexus-label mb-4">DEMAND VARIANCE</div>
+        <div className="h-[200px]">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={demandData} margin={{top: 10, right: 10, left: -20, bottom: 0}}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#292524" vertical={false} />
-              <XAxis dataKey="node" stroke="#78716c" tick={{fontSize: 10}} />
-              <YAxis stroke="#78716c" tick={{fontSize: 10}} />
-              <Tooltip contentStyle={{ backgroundColor: '#1c1917', border: '1px solid #292524', borderRadius: '4px', fontSize: '12px' }} cursor={{fill: '#292524'}} />
-              <Bar name="Variance" dataKey="demand_variance" fill="#57534e" radius={[2, 2, 0, 0]} />
+            <BarChart data={demandData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+              <CartesianGrid stroke="#1a1a1a" vertical={false} />
+              <XAxis
+                dataKey="node"
+                stroke="#444"
+                tick={{ fontSize: 10, fontFamily: '"Space Grotesk"', fill: '#666' }}
+                axisLine={{ stroke: '#222' }}
+                tickLine={false}
+              />
+              <YAxis
+                stroke="#444"
+                tick={{ fontSize: 10, fontFamily: '"Space Grotesk"', fill: '#666' }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#1a1a1a' }} />
+              <Bar dataKey="demand_variance" fill="#444" radius={0} />
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -13,6 +13,9 @@ Hello! This file serves as a sync point between our two Antigravity instances.
    - Configured Kafka producers/consumers structure to communicate on the specified topics.
 3. **API Implementation**:
    - Created the core API router in `backend/main.py` exposing operations via FastAPI (running locally on port 8000). The endpoints exactly match the `api-spec.yaml`.
+4. **Stitch Design Spec Added**:
+   - "The Kinetic Monolith" design spec was attached via Stitch MCP — zero border-radii, Space Grotesk/Inter fonts, tonal layering, NO drop shadows.
+   - Added `/diagnostics/system` endpoint in `backend/oracle/diagnostics.py` returning health, disruptions, latency, and module status metrics.
 
 ## Instructions for the Next Antigravity Agent (Dev B Tasks)
 Your next primary objective is to complete the tasks outlined in `work-henil.md`. 
@@ -34,22 +37,47 @@ Your next primary objective is to complete the tasks outlined in `work-henil.md`
 
 ---
 
-## Demo Readiness & UI Polish Completed by Dev B (Henil)
+## ✅ Frontend Complete — "Kinetic Monolith" Rewrite by Dev B (Henil)
 
-The React frontend has been fully polished and configured for the hackathon demo.
+The entire React frontend has been rewritten to match the **Kinetic Monolith** design specification from the Stitch MCP, and all backend endpoints are now properly wired.
 
-### What Was Done
-1. **Glassmorphism & Rich Aesthetics**: The `App` dashboard, `GlobalMap`, and `InventoryDashboard` components were overhauled with polished Tailwind dark/cyber styling, glassmorphism (`backdrop-blur`), and dynamic glowing visual effects.
-2. **Demo Scenario Implemented**: The Red Sea Closure scenario is fully wired up in the UI. Clicking the "Inject Red Sea Closure" button properly sets the system states:
-   - Updates the live threat intel and highlights the node visually as a critical risk factor.
-   - Triggers dynamic re-routing of the core freight paths (shifting from Suez map arcs to Cape of Good Hope visual arcs).
-   - Generates simulated logs for FORTRESS and NAVIGATOR responses within the dashboard's "Ledger Events" panel.
+### Design System Applied
+- **Zero border-radius** enforced globally via CSS `* { border-radius: 0 !important; }`
+- **Space Grotesk** for headings, labels, metrics — **Inter** for body/descriptions
+- **Tonal layering** palette: `#0a0a0a` → `#111111` → `#1a1a1a` → `#222222` (bg → surface → elevated → border)
+- **NO drop shadows** — depth conveyed purely through tonal escalation and `gap-px` grid separators
+- **Monochrome UI** — white accents only, severity conveyed through weight/brightness not color (except map data visualization)
 
-### How to Run the Demo
-1. Open a terminal and navigate to the root frontend directory: `cd frontend`
-2. Install dependencies: `npm install`
-3. Start the dev server: `npm run dev` (or `npm start` depending on setup)
-4. Access the dashboard via `localhost:5173` (or the respective port indicated).
-5. Click the prominent `Inject Red Sea Closure` button under the DEMO CONTROL panel to showcase the autonomous supply chain intelligence in action.
+### Backend Integration (All 6 Endpoints Wired)
+| Endpoint | Method | Frontend Usage |
+|---|---|---|
+| `/health` | GET | Backend liveness indicator in header (LIVE/MOCK badge) |
+| `/risk-score` | **POST** | ORACLE risk scoring — used by DemoControls + initial data fetch |
+| `/routing/current` | GET | Vessel tracking — route data for initial state |
+| `/routing/override` | POST | Available via `overrideRouting()` in API client |
+| `/inventory/safety-stock` | GET | Stock levels for SKU-ABC, SKU-XYZ |
+| `/inventory/trigger-po` | POST | Available via `triggerPO()` in API client |
+| `/diagnostics/system` | GET | SystemDiagnostics panel — polls every 10s for health/latency/module status |
 
-The Minimal Prototype frontend is fully ready for the demo pitch!
+### Components
+| File | Purpose |
+|---|---|
+| `App.tsx` | Root layout — Kinetic Monolith grid, data fetching, demo state machine |
+| `GlobalMap.tsx` | Deck.gl map with ScatterplotLayer (risk nodes) + ArcLayer (routes), transition animations |
+| `InventoryDashboard.tsx` | Recharts stock + demand variance charts, PO status indicators |
+| `DemoControls.tsx` | 4-phase scenario injection (idle → injecting → rerouting → resolved) with progress bar |
+| `SystemDiagnostics.tsx` | **NEW** — Wired to `/diagnostics/system`, shows health/disruptions/latency + module statuses |
+
+### Demo Flow
+1. `cd frontend && npm install && npm run dev`
+2. Open `http://localhost:5173`
+3. Dashboard loads with real data from `localhost:8000` (or graceful mock fallback)
+4. Click **INJECT RED SEA CLOSURE** →
+   - ORACLE scores risk to 0.95 (node turns red on map)
+   - NAVIGATOR reroutes via Cape of Good Hope (arcs animate)
+   - BUFFER recalculates safety stock (PO triggered)
+   - All events cascade into the Event Log panel
+5. Click **↻ RESET SCENARIO** to return to normal state
+
+### Critical Fix
+- **`/risk-score` is POST**, not GET — the previous API client had this wrong. Now matches `api-spec.yaml` and `backend/main.py` exactly.

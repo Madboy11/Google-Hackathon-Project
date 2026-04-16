@@ -3,7 +3,48 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-slate-950 text-slate-50 antialiased overflow-x-hidden;
+  * {
+    border-radius: 0 !important;
   }
+  
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    @apply bg-nexus-bg text-nexus-text overflow-x-hidden;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Custom scrollbar — monolith aesthetic */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333; }
+  ::-webkit-scrollbar-thumb:hover { background: #444; }
+}
+
+@layer components {
+  .nexus-panel {
+    @apply bg-nexus-surface border border-nexus-border;
+  }
+  .nexus-panel-elevated {
+    @apply bg-nexus-elevated border border-nexus-border-active;
+  }
+  .nexus-label {
+    @apply text-[10px] font-grotesk font-semibold tracking-[0.2em] uppercase text-nexus-muted;
+  }
+  .nexus-value {
+    @apply text-2xl font-grotesk font-bold text-nexus-accent tabular-nums;
+  }
+  .nexus-divider {
+    @apply border-t border-nexus-border;
+  }
+}
+
+/* Deck.gl canvas reset */
+.deck-canvas {
+  position: absolute !important;
+  inset: 0 !important;
 }

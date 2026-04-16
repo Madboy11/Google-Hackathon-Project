@@ -1,47 +1,188 @@
+import { useState, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, ArcLayer, TextLayer } from '@deck.gl/layers';
+import { Map } from 'react-map-gl/maplibre';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-const riskToColor = (score: number): [number, number, number] => {
-  if (score > 0.8) return [239, 68, 68]; // Red-500
-  if (score > 0.5) return [249, 115, 22]; // Orange-500
-  return [16, 185, 129]; // Emerald-500
+// ─── Types ───
+interface RouteData {
+  origin: [number, number];
+  destination: [number, number];
+  risk_score?: number;
+  route_id?: string;
+  originLabel?: string;
+  destLabel?: string;
+}
+
+interface RiskNode {
+  longitude: number;
+  latitude: number;
+  risk_score: number;
+  id: string;
+  label?: string;
+}
+
+interface GlobalMapProps {
+  routes?: RouteData[];
+  riskNodes?: RiskNode[];
+}
+
+// ─── Color Helpers ───
+const riskToFill = (score: number): [number, number, number, number] => {
+  if (score > 0.8) return [255, 70, 70, 230];
+  if (score > 0.5) return [255, 170, 50, 210];
+  return [80, 220, 140, 190];
 };
 
-export const GlobalMap = ({ routes = [], riskNodes = [] }: { routes: any[], riskNodes: any[] }) => {
+const riskToRing = (score: number): [number, number, number, number] => {
+  if (score > 0.8) return [255, 100, 100, 120];
+  if (score > 0.5) return [255, 200, 100, 100];
+  return [100, 240, 160, 80];
+};
+
+// Free dark basemap — CARTO dark matter (no key required)
+const BASEMAP = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+const INITIAL_VIEW = {
+  longitude: 42,
+  latitude: 15,
+  zoom: 2.3,
+  pitch: 35,
+  bearing: 8,
+};
+
+export const GlobalMap = ({ routes = [], riskNodes = [] }: GlobalMapProps) => {
+  const [viewState, setViewState] = useState(INITIAL_VIEW);
+
+  const onViewStateChange = useCallback(({ viewState: vs }: any) => {
+    setViewState(vs);
+  }, []);
+
+  // ─── Label data derived from nodes ───
+  const labelData = riskNodes
+    .filter((n) => n.label)
+    .map((n) => ({
+      position: [n.longitude, n.latitude] as [number, number],
+      text: n.label!.toUpperCase(),
+      risk: n.risk_score,
+    }));
+
+  // ─── Layers ───
   const layers = [
+    // Outer glow ring for each node
+    new ScatterplotLayer({
+      id: 'risk-glow',
+      data: riskNodes,
+      getPosition: (d: RiskNode) => [d.longitude, d.latitude],
+      getFillColor: (d: RiskNode) => riskToRing(d.risk_score),
+      getRadius: (d: RiskNode) => 45000 + d.risk_score * 120000,
+      pickable: false,
+      stroked: false,
+      updateTriggers: {
+        getFillColor: riskNodes.map((n) => n.risk_score),
+        getRadius: riskNodes.map((n) => n.risk_score),
+      },
+      transitions: {
+        getRadius: { duration: 1000, easing: (t: number) => t * (2 - t) },
+        getFillColor: { duration: 800 },
+      },
+    }),
+
+    // Core node dots
     new ScatterplotLayer({
       id: 'risk-nodes',
       data: riskNodes,
-      getPosition: (d: any) => [d.longitude, d.latitude],
-      getFillColor: (d: any) => riskToColor(d.risk_score),
-      getRadius: (d: any) => 30000 + (d.risk_score * 80000),
+      getPosition: (d: RiskNode) => [d.longitude, d.latitude],
+      getFillColor: (d: RiskNode) => riskToFill(d.risk_score),
+      getRadius: (d: RiskNode) => 18000 + d.risk_score * 40000,
       pickable: true,
       stroked: true,
-      getLineColor: [255, 255, 255, 80],
-      lineWidthMinPixels: 2
+      getLineColor: [255, 255, 255, 100],
+      lineWidthMinPixels: 1,
+      updateTriggers: {
+        getFillColor: riskNodes.map((n) => n.risk_score),
+        getRadius: riskNodes.map((n) => n.risk_score),
+      },
+      transitions: {
+        getRadius: { duration: 1000, easing: (t: number) => t * (2 - t) },
+        getFillColor: { duration: 800 },
+      },
     }),
+
+    // Route arcs — directional gradient (bright cyan at source → dim blue at destination)
     new ArcLayer({
       id: 'freight-routes',
       data: routes,
-      getSourcePosition: (d: any) => d.origin,
-      getTargetPosition: (d: any) => d.destination,
-      getSourceColor: [34, 211, 238], // Cyan-400
-      getTargetColor: [59, 130, 246], // Blue-500
+      getSourcePosition: (d: RouteData) => d.origin,
+      getTargetPosition: (d: RouteData) => d.destination,
+      getSourceColor: [0, 220, 255, 220],   // Bright cyan = ORIGIN
+      getTargetColor: [130, 80, 255, 120],   // Faded purple = DESTINATION
       getWidth: 3,
-    })
+      getHeight: 0.4,
+      greatCircle: true,
+      updateTriggers: {
+        getSourcePosition: routes.map((r) => r.origin.join(',')),
+        getTargetPosition: routes.map((r) => r.destination.join(',')),
+      },
+      transitions: {
+        getSourcePosition: { duration: 1500, easing: (t: number) => t * (2 - t) },
+        getTargetPosition: { duration: 1500, easing: (t: number) => t * (2 - t) },
+      },
+    }),
+
+    // Node labels
+    new TextLayer({
+      id: 'node-labels',
+      data: labelData,
+      getPosition: (d: any) => d.position,
+      getText: (d: any) => d.text,
+      getSize: 11,
+      getColor: [200, 200, 200, 200],
+      getPixelOffset: [0, -22],
+      fontFamily: '"Space Grotesk", sans-serif',
+      fontWeight: 600,
+      outlineWidth: 2,
+      outlineColor: [10, 10, 10, 200],
+      billboard: true,
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'bottom',
+    }),
   ];
 
   return (
-    <div className="relative w-full h-[600px] bg-transparent overflow-hidden">
+    <div className="relative w-full h-[560px] overflow-hidden">
       <DeckGL
-        initialViewState={{ longitude: 35, latitude: 20, zoom: 2.5, pitch: 45 }}
+        viewState={viewState}
+        onViewStateChange={onViewStateChange}
         controller={true}
         layers={layers}
-      />
-      <div className="absolute bottom-4 right-4 z-10 flex gap-4 text-xs font-mono text-stone-400 bg-stone-900 border border-stone-800 p-2 rounded">
-         <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500"></span> HIGH RISK</div>
-         <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500"></span> MED RISK</div>
-         <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> SAFE</div>
+      >
+        <Map
+          mapStyle={BASEMAP}
+          attributionControl={false}
+        />
+      </DeckGL>
+
+      {/* Legend — bottom-left, over map */}
+      <div className="absolute bottom-3 left-4 z-20 flex items-center gap-5 text-[10px] font-grotesk tracking-[0.12em] text-neutral-400 bg-black/60 px-3 py-1.5 border border-neutral-800">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-red-500 inline-block"></span> CRITICAL
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-amber-400 inline-block"></span> ELEVATED
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-emerald-400 inline-block"></span> NOMINAL
+        </div>
+      </div>
+
+      {/* Route direction indicator */}
+      <div className="absolute bottom-3 right-4 z-20 flex items-center gap-2 text-[10px] font-grotesk tracking-[0.1em] text-neutral-500 bg-black/60 px-3 py-1.5 border border-neutral-800">
+        <span className="w-3 h-[2px] bg-cyan-400 inline-block"></span>
+        <span>ORIGIN</span>
+        <span className="text-neutral-700">→</span>
+        <span className="w-3 h-[2px] bg-purple-500/60 inline-block"></span>
+        <span>DEST</span>
       </div>
     </div>
   );
