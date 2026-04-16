@@ -1,13 +1,23 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
 
 from oracle.engine import oracle_engine
+from oracle.diagnostics import get_system_diagnostics
 from navigator.engine import navigator_engine
 from buffer.engine import buffer_engine
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="NEXUS-SC", description="Dev A Backend AI/ML APIs", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class RiskScoreRequest(BaseModel):
     node_id: str
@@ -23,7 +33,11 @@ class TriggerPORequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "OK", "service": "NEXUS-SC Dev A Backend"}
+    return {"status": "OK", "service": "NEXUS-SC Dev A Backend", "version": "1.0.0"}
+
+@app.get("/diagnostics/system")
+async def system_diagnostics():
+    return get_system_diagnostics()
 
 @app.post("/risk-score")
 async def get_risk_score(req: RiskScoreRequest):

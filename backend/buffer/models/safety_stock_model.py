@@ -1,16 +1,24 @@
-import torch
-import torch.nn as nn
+try:
+    import torch
+    import torch.nn as nn
+    BaseModule = nn.Module
+except ImportError:
+    class BaseModule:
+        def __init__(self): pass
 
-class SafetyStockNet(nn.Module):
+class SafetyStockNet(BaseModule):
     def __init__(self):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(8, 64), 
-            nn.ReLU(),
-            nn.Linear(64, 32), 
-            nn.ReLU(),
-            nn.Linear(32, 1)   # Output: recommended safety stock units
-        )
+        try:
+            self.net = nn.Sequential(
+                nn.Linear(8, 64), 
+                nn.ReLU(),
+                nn.Linear(64, 32), 
+                nn.ReLU(),
+                nn.Linear(32, 1)   # Output: recommended safety stock units
+            )
+        except NameError:
+            self.net = None
     
     def forward(self, x):
         return self.net(x)

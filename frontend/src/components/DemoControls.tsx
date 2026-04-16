@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
-const BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const BASE = import.meta.env?.VITE_API_URL || 'http://localhost:8000';
 
 interface DemoControlsProps {
   onTriggerEvent?: () => void;
@@ -31,28 +31,27 @@ export const DemoControls = ({ onTriggerEvent }: DemoControlsProps) => {
   };
 
   return (
-    <div className="bg-slate-900/60 backdrop-blur-md border border-red-900/50 rounded-xl p-6 shadow-2xl flex flex-col gap-4 relative overflow-hidden group hover:border-red-500/50 transition-colors duration-500">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-orange-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
-      <div className="flex items-center gap-3">
-        <ShieldAlert className="text-red-500 w-8 h-8 animate-pulse" />
-        <h2 className="text-xl font-bold font-mono text-slate-100">DEMO CONTROL</h2>
+    <div className="bg-stone-900 border border-stone-800 rounded-lg p-5 flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="text-stone-400 w-5 h-5" />
+        <h2 className="text-sm font-bold font-mono text-stone-200 tracking-wider">DEMO CONTROL</h2>
       </div>
-      <p className="text-slate-400 text-sm">
-        Manually inject a Black Swan event to trigger autonomous multi-module resolution.
+      <p className="text-stone-400 text-xs">
+        Manually inject a disruption event to trigger resolution.
       </p>
       
       <button
         onClick={injectRedSeaClosure}
         disabled={demoState !== 'idle'}
-        className={`flex items-center justify-center gap-2 font-bold py-3 px-6 rounded-lg shadow-lg transition-all ${
+        className={`flex items-center justify-center gap-2 text-xs font-mono py-2.5 px-4 rounded transition-all ${
             demoState === 'idle' 
-            ? 'bg-gradient-to-r from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white shadow-red-900/50' 
-            : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+            ? 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700' 
+            : 'bg-stone-950 text-stone-600 cursor-not-allowed border border-stone-900'
         }`}
       >
-        <AlertTriangle className={`w-5 h-5 ${demoState === 'injecting' ? 'animate-spin' : ''}`} />
-        {demoState === 'idle' ? 'Inject Red Sea Closure' : 
-         demoState === 'injecting' ? 'Analyzing Signal...' : 'Rerouting Complete'}
+        <AlertTriangle className={`w-4 h-4 ${demoState === 'injecting' ? 'animate-spin' : ''}`} />
+        {demoState === 'idle' ? 'INJECT RED SEA CLOSURE' : 
+         demoState === 'injecting' ? 'ANALYZING...' : 'REROUTED'}
       </button>
     </div>
   );

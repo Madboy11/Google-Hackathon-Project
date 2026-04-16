@@ -40,7 +40,7 @@ def simulate_demo_flow():
     
     po_info = res['po_info']
     if po_info['po_triggered']:
-        print(f"\n[4] SYSTEM ACTION: 🚨 Automated Purchase Order Triggered 🚨")
+        print(f"\n[4] SYSTEM ACTION: AUTOMATED PURCHASE ORDER TRIGGERED")
         print(f"   [BUFFER] Reordered {po_info['po_quantity']} units of {res['sku_id']} autonomously.")
     else:
         print("\n[4] SYSTEM ACTION: Stock is sufficient for adjusted risk.")

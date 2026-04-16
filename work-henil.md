@@ -3,6 +3,13 @@ Blockchain + Security + Frontend (Go / React)
 > **Ownership:** `blockchain/`, `fortress/`, `frontend/` directories  
 > **Stack:** Go (Hyperledger Fabric chaincode), React 18 + TypeScript, Tailwind CSS, D3.js, Deck.gl, Recharts
 ---
+**⚠️ CRITICAL UI INSTRUCTION (READ FIRST) ⚠️**
+Vansh has attached the **Stitch MCP Server** to this workspace (`mcp_stitch`). 
+Your FIRST priority as Dev B is to override the previous React implementation and apply "The Kinetic Monolith" design spec found in Stitch.
+1. Use the `mcp_stitch_list_screens` and `get_screen` tools to read the `afc18dc1daa1472192c2edc94cc7eba8` "Global Risk Command Center" unified dashboard.
+2. Ensure you strictly adhere to the `designMd` (Zero-pixel border radii, Space Grotesk/Inter fonts, Tonal Layering, NO drop shadows, etc.).
+3. You must integrate API endpoints from Dev A (e.g. `/diagnostics/system`) to power the structural Health & Latency metrics described in the UI setup.
+---
 Day 0 — Project Setup (Before the Clock Starts)
 Goals
 Scaffold the React + TypeScript frontend project.
