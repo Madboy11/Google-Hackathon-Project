@@ -10,6 +10,11 @@ paths:
       responses:
         '200':
           description: Health OK
+          content:
+            application/json:
+              example:
+                status: "OK"
+                service: "NEXUS-SC Dev A Backend"
   /risk-score:
     post:
       summary: Returns disruption risk score per node
@@ -24,15 +29,30 @@ paths:
                 time_horizon:
                   type: string
                   default: "72h"
+            example:
+              node_id: "red_sea"
+              time_horizon: "72h"
       responses:
         '200':
           description: Risk score details
+          content:
+            application/json:
+              example:
+                node_id: "red_sea"
+                risk_score: 0.95
+                time_horizon: "72h"
   /routing/current:
     get:
       summary: Current RL routing recommendations
       responses:
         '200':
           description: A list of current active routes
+          content:
+            application/json:
+              example:
+                - vessel_id: "IMO-100200"
+                  status: "on_time"
+                  current_action: "maintain"
   /routing/override:
     post:
       summary: Manual human override for routing
@@ -46,9 +66,20 @@ paths:
                   type: string
                 action:
                   type: string
+            example:
+              vessel_id: "IMO-300400"
+              action: "divert_port_B"
       responses:
         '200':
           description: Override result
+          content:
+            application/json:
+              example:
+                status: "success"
+                UpdatedRoute:
+                  vessel_id: "IMO-300400"
+                  status: "delayed"
+                  current_action: "divert_port_B"
   /inventory/safety-stock:
     get:
       summary: Current safety stock levels per SKU
@@ -58,9 +89,20 @@ paths:
           schema:
             type: string
           required: true
+          example: "SKU-ABC"
       responses:
         '200':
           description: Recommended safety stock
+          content:
+            application/json:
+              example:
+                sku_id: "SKU-ABC"
+                current_stock: 110
+                recommended_stock: 147
+                po_info:
+                  sku_id: "SKU-ABC"
+                  po_triggered: false
+                  po_quantity: 0
   /inventory/trigger-po:
     post:
       summary: Manually trigger purchase order
@@ -74,6 +116,14 @@ paths:
                   type: string
                 quantity:
                   type: integer
+            example:
+              sku_id: "SKU-ABC"
+              quantity: 50
       responses:
         '200':
           description: Successful PO trigger
+          content:
+            application/json:
+              example:
+                status: "success"
+                message: "Successfully triggered manual PO for SKU-ABC x50"
