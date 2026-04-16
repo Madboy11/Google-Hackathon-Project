@@ -1,0 +1,79 @@
+openapi: 3.0.0
+info:
+  title: NEXUS-SC API
+  version: 1.0.0
+  description: API specifications for Dev A backend modules
+paths:
+  /health:
+    get:
+      summary: Service health check
+      responses:
+        '200':
+          description: Health OK
+  /risk-score:
+    post:
+      summary: Returns disruption risk score per node
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                node_id:
+                  type: string
+                time_horizon:
+                  type: string
+                  default: "72h"
+      responses:
+        '200':
+          description: Risk score details
+  /routing/current:
+    get:
+      summary: Current RL routing recommendations
+      responses:
+        '200':
+          description: A list of current active routes
+  /routing/override:
+    post:
+      summary: Manual human override for routing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vessel_id:
+                  type: string
+                action:
+                  type: string
+      responses:
+        '200':
+          description: Override result
+  /inventory/safety-stock:
+    get:
+      summary: Current safety stock levels per SKU
+      parameters:
+        - in: query
+          name: sku_id
+          schema:
+            type: string
+          required: true
+      responses:
+        '200':
+          description: Recommended safety stock
+  /inventory/trigger-po:
+    post:
+      summary: Manually trigger purchase order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sku_id:
+                  type: string
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Successful PO trigger

@@ -1,0 +1,48 @@
+{
+  "topics": {
+    "nexus.risk.scores": {
+      "type": "object",
+      "properties": {
+        "node_id": {"type": "string"},
+        "risk_score": {"type": "number"},
+        "risk_type": {"type": "string"},
+        "time_horizon": {"type": "string"}
+      },
+      "required": ["node_id", "risk_score", "risk_type", "time_horizon"]
+    },
+    "nexus.demand.signals": {
+      "type": "object",
+      "properties": {
+        "sku_id": {"type": "string"},
+        "pos_quantity": {"type": "integer"},
+        "timestamp": {"type": "string"},
+        "store_id": {"type": "string"}
+      },
+      "required": ["sku_id", "pos_quantity", "timestamp", "store_id"]
+    },
+    "nexus.routing.orders": {
+      "type": "object",
+      "properties": {
+        "vessel_id": {"type": "string"},
+        "action": {"type": "string"},
+        "cost_delta_usd": {"type": "number"},
+        "delay_delta_hours": {"type": "number"},
+        "carbon_delta_tonnes": {"type": "number"},
+        "confidence": {"type": "number"}
+      },
+      "required": ["vessel_id", "action", "cost_delta_usd", "delay_delta_hours", "carbon_delta_tonnes", "confidence"]
+    },
+    "nexus.inventory.alerts": {
+      "type": "object",
+      "properties": {
+        "sku_id": {"type": "string"},
+        "alert_type": {"type": "string"},
+        "recommended_stock": {"type": "number"},
+        "current_stock": {"type": "number"},
+        "po_triggered": {"type": "boolean"},
+        "po_quantity": {"type": "number"}
+      },
+      "required": ["sku_id", "alert_type", "recommended_stock", "current_stock", "po_triggered"]
+    }
+  }
+}
