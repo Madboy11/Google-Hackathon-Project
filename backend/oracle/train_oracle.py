@@ -24,7 +24,7 @@ def generate_synthetic_data(num_samples=10000, seq_length=24, input_features=10)
     y = torch.sigmoid(risk_factor).unsqueeze(1)
     return X, y
 
-def train_model(epochs=5, batch_size=128, lr=0.001):
+def train_model(epochs=200, batch_size=128, lr=0.001):
     # Detect Hardware (NVIDIA A2000 target)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"Using device: {device}")

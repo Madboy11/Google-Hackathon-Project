@@ -1,0 +1,129 @@
+{
+  "metrics": {
+    "mse": 1.7240109855265473e-06,
+    "rmse": 0.001313015935011208,
+    "mae": 0.0010180665412917733,
+    "accuracy": 99.9,
+    "precision": 99.96336996336996,
+    "recall": 99.89019033674963,
+    "f1": 99.92676675210545,
+    "auc": 99.99979793174481
+  },
+  "training": {
+    "epochs": 200,
+    "final_train_loss": 5.7906142668798566e-05,
+    "final_val_loss": 1.727922807504001e-06,
+    "time_seconds": 135.20864820480347
+  },
+  "scenarios": {
+    "Calm Seas - Normal Operations": {
+      "score": 0.09944604337215424,
+      "level": "LOW",
+      "drivers": {
+        "Market Sentiment": 0.800000011920929,
+        "Fuel Price Index": 0.24792896211147308,
+        "Carrier Reliability": 0.23817701637744904
+      }
+    },
+    "Moderate Weather": {
+      "score": 0.1876315474510193,
+      "level": "LOW",
+      "drivers": {
+        "Market Sentiment": 0.5999999642372131,
+        "Wind Speed": 0.4000000059604645,
+        "Wave Height": 0.3499999940395355
+      }
+    },
+    "Severe Tropical Storm": {
+      "score": 0.6084755063056946,
+      "level": "HIGH",
+      "drivers": {
+        "Wind Speed": 0.9000000357627869,
+        "Wave Height": 0.8499999642372131,
+        "Rain Volume": 0.800000011920929
+      }
+    },
+    "Red Sea Crisis (Houthi Attacks)": {
+      "score": 0.9248777627944946,
+      "level": "CRITICAL",
+      "drivers": {
+        "Geopolitical Risk": 0.949999988079071,
+        "Piracy/Conflict": 0.9000000357627869,
+        "Port Congestion": 0.699999988079071
+      }
+    },
+    "Suez Canal Blockage": {
+      "score": 0.8311237692832947,
+      "level": "CRITICAL",
+      "drivers": {
+        "Port Congestion": 0.9800000190734863,
+        "Geopolitical Risk": 0.699999988079071,
+        "Piracy/Conflict": 0.29999998211860657
+      }
+    },
+    "Port Congestion (Shanghai)": {
+      "score": 0.4517117142677307,
+      "level": "MEDIUM",
+      "drivers": {
+        "Port Congestion": 0.9000000357627869,
+        "Tariff Pressure": 0.5999999642372131,
+        "Market Sentiment": 0.4000000059604645
+      }
+    },
+    "Geopolitical Sanctions (Russia)": {
+      "score": 0.7349808216094971,
+      "level": "HIGH",
+      "drivers": {
+        "Geopolitical Risk": 0.8499999642372131,
+        "Tariff Pressure": 0.800000011920929,
+        "Piracy/Conflict": 0.5999999642372131
+      }
+    },
+    "Piracy Risk (Gulf of Aden)": {
+      "score": 0.6861447691917419,
+      "level": "HIGH",
+      "drivers": {
+        "Piracy/Conflict": 0.8499999642372131,
+        "Geopolitical Risk": 0.5999999642372131,
+        "Port Congestion": 0.29999998211860657
+      }
+    },
+    "Fuel Crisis + Tariff Spike": {
+      "score": 0.34312382340431213,
+      "level": "LOW",
+      "drivers": {
+        "Tariff Pressure": 0.9000000357627869,
+        "Fuel Price Index": 0.9000000357627869,
+        "Port Congestion": 0.4000000059604645
+      }
+    },
+    "Multi-Factor Catastrophe": {
+      "score": 0.9615674614906311,
+      "level": "CRITICAL",
+      "drivers": {
+        "Geopolitical Risk": 0.9000000357627869,
+        "Port Congestion": 0.9000000357627869,
+        "Fuel Price Index": 0.8499999642372131
+      }
+    },
+    "COVID-era Supply Chain Shock": {
+      "score": 0.654455840587616,
+      "level": "HIGH",
+      "drivers": {
+        "Port Congestion": 0.8499999642372131,
+        "Tariff Pressure": 0.5,
+        "Geopolitical Risk": 0.5
+      }
+    },
+    "Optimal Conditions (Best Case)": {
+      "score": 0.07309608906507492,
+      "level": "LOW",
+      "drivers": {
+        "Market Sentiment": 0.949999988079071,
+        "Carrier Reliability": 0.9000000357627869,
+        "Fuel Price Index": 0.20000000298023224
+      }
+    }
+  },
+  "verdict": "EXCELLENT"
+}

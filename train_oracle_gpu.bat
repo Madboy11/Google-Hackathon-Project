@@ -1,4 +1,5 @@
 @echo off
+cd /d %~dp0
 TITLE NEXUS-SC AI Training Interface (A2000 GPU)
 color 0B
 
@@ -11,31 +12,33 @@ echo intelligence model using your NVIDIA A2000 Graphics Card.
 echo.
 echo Step 1: Checking Python environment...
 
-:: Check if Python is installed
-python --version >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
+set PYTHON_EXE=D:\Python311\python.exe
+set VENV_PATH=venv
+
+:: Check if the base Python exists
+if not exist "%PYTHON_EXE%" (
     color 0C
-    echo [!] ERROR: Python is not installed or not in your system PATH.
-    echo Please install Python 3.11+ before running this.
+    echo [!] ERROR: Python is not installed at %PYTHON_EXE%.
     pause
     exit /b
 )
 
-:: Ensure venv exists
-if not exist "venv\Scripts\activate.bat" (
-    echo Step 2: Creating virtual environment... (This might take a minute)
-    python -m venv venv
+:: Step 2: Ensure venv exists
+if not exist "%VENV_PATH%\Scripts\python.exe" (
+    echo Step 2: Creating virtual environment...
+    "%PYTHON_EXE%" -m virtualenv %VENV_PATH%
+    if %ERRORLEVEL% NEQ 0 (
+        color 0C
+        echo [!] ERROR: Failed to create virtual environment.
+        pause
+        exit /b
+    )
 )
 
-:: Activate environment
-echo Step 3: Activating environment...
-call venv\Scripts\activate.bat
-
-:: Install Requirements
-echo Step 4: Ensuring AI / Deep Learning dependencies are installed...
-:: We use the specific PyTorch index to guarantee NVIDIA CUDA compatibility
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121 --quiet
-pip install -r backend\requirements.txt --quiet
+:: Step 3: Install/Update Requirements using the venv's python directly
+echo Step 3: Ensuring AI / Deep Learning dependencies are installed...
+"%VENV_PATH%\Scripts\python.exe" -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121 --quiet
+"%VENV_PATH%\Scripts\python.exe" -m pip install -r backend\requirements.txt --quiet
 
 echo.
 echo ==========================================================
@@ -45,8 +48,8 @@ echo.
 echo Please do not close this window until the training is complete!
 echo.
 
-:: Run the script
-python backend\oracle\train_oracle.py
+:: Step 4: Run the training script
+"%VENV_PATH%\Scripts\python.exe" backend\oracle\train_oracle.py
 
 echo.
 echo ==========================================================
