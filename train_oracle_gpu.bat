@@ -1,6 +1,6 @@
 @echo off
 cd /d %~dp0
-TITLE NEXUS-SC AI Training Interface (A2000 GPU)
+TITLE NEXUS-SC AI Training Interface (RTX 3050 Mobile)
 color 0B
 
 echo ==========================================================
@@ -8,7 +8,7 @@ echo        NEXUS-SC: ORACLE AI TRAINING PORTAL
 echo ==========================================================
 echo.
 echo Hello! This script will automatically train the shipping
-echo intelligence model using your NVIDIA A2000 Graphics Card.
+echo intelligence model using your NVIDIA RTX 3050 Laptop GPU.
 echo.
 echo Step 1: Checking Python environment...
 
@@ -39,12 +39,15 @@ if not exist "%VENV_PATH%\Scripts\python.exe" (
 echo Step 3: Ensuring AI / Deep Learning dependencies are installed...
 "%VENV_PATH%\Scripts\python.exe" -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121 --quiet
 "%VENV_PATH%\Scripts\python.exe" -m pip install -r backend\requirements.txt --quiet
+"%VENV_PATH%\Scripts\python.exe" -m pip install pandas pyarrow scikit-learn numpy --quiet
 
 echo.
 echo ==========================================================
 echo    HARDWARE ENVIRONMENT PREPARED. INITIALIZING TRAINING.
 echo ==========================================================
 echo.
+echo [MEMORY PROTECTION ON] Limiting VRAM fragmentation for 4GB constraints...
+set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 echo Please do not close this window until the training is complete!
 echo.
 
