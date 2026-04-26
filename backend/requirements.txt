@@ -1,74 +1,8 @@
-# ── Web Framework ─────────────────────────────────────────────
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-httpx==0.27.0
-pydantic==2.7.1
-python-multipart==0.0.9
-
-# ── Async & Concurrency ───────────────────────────────────────
-anyio==4.4.0
-
-# ── Message Broker ───────────────────────────────────────────
-kafka-python==2.0.2
-confluent-kafka==2.4.0
-
-# ── Caching ──────────────────────────────────────────────────
-redis==5.0.4
-hiredis==2.3.2
-
-# ── Database ─────────────────────────────────────────────────
-psycopg2-binary==2.9.9
-sqlalchemy==2.0.30
-alembic==1.13.1          # DB migrations
-timescaledb                # TimescaleDB adapter (time-series)
-
-# ── AI / ML — Core ───────────────────────────────────────────
-torch==2.3.0
-torchvision==0.18.0
-numpy==1.26.4
-pandas==2.2.2
-scikit-learn==1.5.0
-scipy==1.13.1
-
-# ── Reinforcement Learning ───────────────────────────────────
-stable-baselines3==2.3.2
-gymnasium==0.29.1         # OpenAI Gym successor (env interface)
-shimmy==1.3.0             # compatibility shim
-
-# ── NLP / Transformers ───────────────────────────────────────
-transformers==4.41.0
-tokenizers==0.19.1
-sentencepiece==0.2.0
-datasets==2.19.1          # HuggingFace datasets
-
-# ── GAN / Synthetic Data Generation ─────────────────────────
-ctgan==0.9.0              # GAN-based tabular data synthesis
-sdv==1.12.1               # Synthetic Data Vault
-
-# ── Data Ingestion / Streaming ───────────────────────────────
-apache-flink==1.19.0      # stream processing (Python API)
-pyspark==3.5.1            # batch processing
-
-# ── External API Connectors ──────────────────────────────────
-requests==2.32.2
-aiohttp==3.9.5
-openweathermap-sdk==1.0.0 # or use requests to NOAA/OpenWeatherMap directly
-gdelt==0.1.9              # GDELT geopolitical event stream
-
-# ── Graph Database (Tier-N supplier mapping) ─────────────────
-neo4j==5.21.0             # Neo4j Python driver
-
-# ── Security (backend) ───────────────────────────────────────
-python-jose[cryptography]==3.3.0   # JWT
-passlib[bcrypt]==1.7.4
-cryptography==42.0.7
-
-# ── Observability ────────────────────────────────────────────
-prometheus-client==0.20.0
-opentelemetry-sdk==1.24.0
-opentelemetry-instrumentation-fastapi==0.45b0
-
-# ── Testing ──────────────────────────────────────────────────
-pytest==8.2.1
-pytest-asyncio==0.23.7
-httpx==0.27.0             # async test client for FastAPI
+fastmcp
+httpx
+redis
+python-dotenv
+uvicorn
+websockets
+fastapi
+python-multipart
