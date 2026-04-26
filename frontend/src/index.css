@@ -1,28 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Reset ──────────────────────────────────────────────────────────────── */
 html, body, #root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
+  width: 100%; height: 100%;
+  margin: 0; padding: 0;
   overflow: hidden;
-  background-color: #0A0F1E;
+  background: #04060f;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbar for dark theme */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.4); }
+
+/* ── Glassmorphism utility classes ───────────────────────────────────────── */
+@layer components {
+  /* Primary glass — nav bars, main panels */
+  .glass {
+    background: rgba(8, 12, 24, 0.72);
+    backdrop-filter: blur(6px) saturate(1.6);
+    -webkit-backdrop-filter: blur(6px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.055);
+    box-shadow: 0 0 0 0.5px rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.45);
+  }
+
+  /* Lighter glass — cards, rows */
+  .glass-card {
+    background: rgba(11, 16, 35, 0.65);
+    backdrop-filter: blur(4px) saturate(1.4);
+    -webkit-backdrop-filter: blur(4px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.045);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  }
+
+  /* Highlighted glass — active / selected states */
+  .glass-highlight {
+    background: rgba(99, 102, 241, 0.06);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    box-shadow: 0 0 0 0.5px rgba(99,102,241,0.12) inset, 0 4px 16px rgba(99,102,241,0.1);
+  }
+
+  /* KPI stat card */
+  .stat-card {
+    @apply glass-card rounded-xl px-4 py-3 flex flex-col gap-1 transition-all duration-200 hover:border-indigo-500/20;
+  }
+
+  /* Iridescent text gradient */
+  .text-iridescent {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 35%, #06b6d4 65%, #14b8a6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Shimmer loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.8s linear infinite;
+  }
+
+  /* Glow accent border */
+  .border-glow {
+    box-shadow: 0 0 0 1px rgba(99,102,241,0.3), 0 0 16px rgba(99,102,241,0.1);
+  }
+
+  /* Risk level chips */
+  .chip-critical { @apply text-red-400 bg-red-500/10 border border-red-500/20 text-[10px] font-mono px-2 py-0.5 rounded-full; }
+  .chip-high     { @apply text-orange-400 bg-orange-500/10 border border-orange-500/20 text-[10px] font-mono px-2 py-0.5 rounded-full; }
+  .chip-medium   { @apply text-amber-400 bg-amber-500/10 border border-amber-500/20 text-[10px] font-mono px-2 py-0.5 rounded-full; }
+  .chip-low      { @apply text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono px-2 py-0.5 rounded-full; }
+  .chip-ok       { @apply text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono px-2 py-0.5 rounded-full; }
+
+  /* Panel section header */
+  .section-label {
+    @apply text-[9px] font-mono uppercase tracking-[0.15em] text-slate-600;
+  }
+
+  /* Monospaced data value */
+  .data-value {
+    @apply font-mono text-slate-300 text-sm;
+  }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/* ── Micro-animation: pulsing glow ring on active dots ───────────────────── */
+@keyframes ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+  50%       { box-shadow: 0 0 0 6px rgba(99,102,241,0); }
 }
-::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
+.ring-pulse { animation: ring-pulse 2s ease-out infinite; }
+
+/* ── Deck.gl canvas must sit above WebGL background ──────────────────────── */
+.deckgl-wrapper { position: relative; z-index: 1; }
