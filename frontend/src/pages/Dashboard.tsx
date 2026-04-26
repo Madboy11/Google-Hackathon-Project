@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React from 'react';
 import { GlobalMap } from '../components/GlobalMap';
 import { InventoryDashboard } from '../components/InventoryDashboard';

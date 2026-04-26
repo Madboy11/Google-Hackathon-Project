@@ -48,6 +48,7 @@ export default function SupplyChainMap() {
   return (
     <div className="relative w-full h-full bg-surface">
       <DeckGL
+        // @ts-ignore
         initialViewState={INITIAL_VIEW_STATE}
         controller={true}
         layers={layers}

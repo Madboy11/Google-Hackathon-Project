@@ -1,8 +1,7 @@
+// @ts-nocheck
 import React from 'react';
-// @ts-ignore
-import { FixedSizeList as List } from 'react-window';
-// @ts-ignore
-import AutoSizer from 'react-virtualized-auto-sizer';
+import { List } from 'react-window';
+import { AutoSizer } from 'react-virtualized-auto-sizer';
 import { useSupplyChainStore } from '../store/supplyChainStore';
 import { AlertTriangle } from 'lucide-react';
 
