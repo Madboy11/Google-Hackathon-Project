@@ -270,7 +270,59 @@ async def optimise_route(origin_port: str, destination_port: str, cargo_type: st
     key = f"route:{origin_port}:{destination_port}"
     return await cache_with_stampede_protection(key, 3600, _fetch_optimise_route, origin_port, destination_port, cargo_type, departure_date)
 
+
+# ── REST tool-call endpoint (bypasses MCP SDK session complexity) ──────────────
+# Mounted alongside the FastMCP SSE app on the same uvicorn process.
+# The orchestrator calls POST /tools/call with {"tool": "...", "args": {...}}
+
+from fastapi import FastAPI as _FastAPI, Request as _Request
+from fastapi.responses import JSONResponse as _JSONResponse
+from fastapi.middleware.cors import CORSMiddleware as _CORS
+
+rest_app = _FastAPI(title="NEXUS Tool REST Bridge")
+rest_app.add_middleware(_CORS, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Registry of callable tools
+_TOOL_REGISTRY = {
+    "get_vessel_positions":      lambda a: get_vessel_positions(**a),
+    "get_port_congestion":       lambda a: get_port_congestion(**a),
+    "get_disruption_signals":    lambda a: get_disruption_signals(**a),
+    "get_weather_hazards":       lambda a: get_weather_hazards(**a),
+    "get_geopolitical_risk_index": lambda a: get_geopolitical_risk_index(**a),
+    "optimise_route":            lambda a: optimise_route(**a),
+}
+
+@rest_app.post("/tools/call")
+async def call_tool(request: _Request):
+    body = await request.json()
+    tool_name = body.get("tool")
+    args = body.get("args", {})
+    if tool_name not in _TOOL_REGISTRY:
+        return _JSONResponse({"error": f"Unknown tool: {tool_name}"}, status_code=404)
+    try:
+        result = await _TOOL_REGISTRY[tool_name](args)
+        return _JSONResponse(result)
+    except Exception as e:
+        return _JSONResponse({"error": str(e)}, status_code=500)
+
+@rest_app.get("/tools/health")
+async def tools_health():
+    return {"status": "ok", "tools": list(_TOOL_REGISTRY.keys())}
+
+
 if __name__ == "__main__":
-    # We use Uvicorn to run the FastMCP SSE app. FastMCP exposes an ASGI app.
-    # Actually FastMCP has a run() method. We can use mcp.run()
+    import uvicorn
+    import threading
+
+    def run_rest():
+        uvicorn.run(rest_app, host="127.0.0.1", port=8003, log_level="warning")
+
+    t = threading.Thread(target=run_rest, daemon=True)
+    t.start()
+    print("REST tool bridge running on http://127.0.0.1:8003/tools")
+
+    # FastMCP SSE on port 8000 (main thread)
     mcp.run(transport="sse")
+
+
+

@@ -1,22 +1,30 @@
+"""
+orchestrator.py — NEXUS-SC A2A Orchestrator
+============================================
+Calls MCP tools via direct HTTP POST to /tools/call on port 8000.
+No MCP SDK session required — works reliably without SSE handshake issues.
+Streams AI responses (free OpenRouter models) via SSE to the React frontend.
+"""
+
 import os
 import json
 import asyncio
 import logging
 import time
+import threading
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from mcp.client.sse import sse_client
-from mcp.client.session import ClientSession
-from contextlib import AsyncExitStack
+import httpx
 
-# Set up logging
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 logging.basicConfig(level=logging.INFO)
 
-from agent.reasoning_core import get_model
+from agent.reasoning_core import stream_reasoning, complete_reasoning, get_model_status
 
+# ── FastAPI app ────────────────────────────────────────────────────────────────
 app = FastAPI(title="NEXUS A2A Orchestrator")
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,152 +33,197 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-mcp_session = None
-mcp_exit_stack = AsyncExitStack()
-chat_session = None
+# ── Global state ───────────────────────────────────────────────────────────────
 tool_call_log = []
+MCP_BASE = "http://127.0.0.1:8003"
 
-# --- GEMINI TOOL DEFINITIONS ---
 
-async def get_vessel_positions(bbox: str) -> dict:
-    """Fetch live AIS vessel positions within a bounding box. Format: minLon,minLat,maxLon,maxLat"""
+# ── HTTP tool caller ───────────────────────────────────────────────────────────
+
+async def call_tool(tool_name: str, args: dict) -> dict:
+    """Call a NEXUS MCP tool via direct HTTP POST."""
     start = time.time()
     try:
-        res = await mcp_session.call_tool("get_vessel_positions", arguments={"bbox": bbox})
-        result = json.loads(res.content[0].text)
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{MCP_BASE}/tools/call",
+                json={"tool": tool_name, "args": args},
+            )
+            result = resp.json()
     except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "get_vessel_positions", "parameters": {"bbox": bbox}, "response_time_ms": int((time.time() - start) * 1000)})
+        result = {"error": str(e), "tool": tool_name}
+    elapsed = int((time.time() - start) * 1000)
+    tool_call_log.append({"tool_name": tool_name, "parameters": args, "response_time_ms": elapsed})
+    logging.info("🔧 Tool %s → %dms", tool_name, elapsed)
     return result
 
-async def get_port_congestion(port_codes: list[str]) -> dict:
-    """Fetch port congestion metrics for given UN/LOCODE port codes."""
-    start = time.time()
+
+async def mcp_available() -> bool:
     try:
-        res = await mcp_session.call_tool("get_port_congestion", arguments={"port_codes": port_codes})
-        result = json.loads(res.content[0].text)
-    except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "get_port_congestion", "parameters": {"port_codes": port_codes}, "response_time_ms": int((time.time() - start) * 1000)})
-    return result
+        async with httpx.AsyncClient(timeout=3) as client:
+            r = await client.get(f"{MCP_BASE}/tools/health")
+            return r.status_code == 200
+    except Exception:
+        return False
 
-async def get_disruption_signals(region: str, hours_back: int = 24) -> dict:
-    """Fetch supply-chain-relevant disruption news and events."""
-    start = time.time()
-    try:
-        res = await mcp_session.call_tool("get_disruption_signals", arguments={"region": region, "hours_back": hours_back})
-        result = json.loads(res.content[0].text)
-    except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "get_disruption_signals", "parameters": {"region": region, "hours_back": hours_back}, "response_time_ms": int((time.time() - start) * 1000)})
-    return result
 
-async def get_weather_hazards(lat: float, lon: float, radius_km: int) -> dict:
-    """Fetch active weather hazards along shipping corridors."""
-    start = time.time()
-    try:
-        res = await mcp_session.call_tool("get_weather_hazards", arguments={"lat": lat, "lon": lon, "radius_km": radius_km})
-        result = json.loads(res.content[0].text)
-    except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "get_weather_hazards", "parameters": {"lat": lat, "lon": lon, "radius_km": radius_km}, "response_time_ms": int((time.time() - start) * 1000)})
-    return result
-
-async def get_geopolitical_risk_index(country_codes: list[str]) -> dict:
-    """Fetch real-time geopolitical risk scores per country."""
-    start = time.time()
-    try:
-        res = await mcp_session.call_tool("get_geopolitical_risk_index", arguments={"country_codes": country_codes})
-        result = json.loads(res.content[0].text)
-    except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "get_geopolitical_risk_index", "parameters": {"country_codes": country_codes}, "response_time_ms": int((time.time() - start) * 1000)})
-    return result
-
-async def optimise_route(origin_port: str, destination_port: str, cargo_type: str, departure_date: str) -> dict:
-    """Call routing API to compute optimal route."""
-    start = time.time()
-    try:
-        res = await mcp_session.call_tool("optimise_route", arguments={"origin_port": origin_port, "destination_port": destination_port, "cargo_type": cargo_type, "departure_date": departure_date})
-        result = json.loads(res.content[0].text)
-    except Exception as e:
-        result = {"error": str(e)}
-    tool_call_log.append({"tool_name": "optimise_route", "parameters": {"origin_port": origin_port, "destination_port": destination_port, "cargo_type": cargo_type, "departure_date": departure_date}, "response_time_ms": int((time.time() - start) * 1000)})
-    return result
-
-gemini_tools = [
-    get_vessel_positions, get_port_congestion, get_disruption_signals,
-    get_weather_hazards, get_geopolitical_risk_index, optimise_route
-]
-
-async def connect_to_mcp_server():
-    global mcp_session, mcp_exit_stack, chat_session
-    server_url = "http://127.0.0.1:8000/sse"
-    
-    # Wait for MCP server to start
-    import httpx
-    for _ in range(15):
-        try:
-            async with httpx.AsyncClient() as client:
-                await client.get(server_url)
-                break
-        except Exception:
-            await asyncio.sleep(2)
-
-    try:
-        sse_ctx = sse_client(server_url)
-        streams = await mcp_exit_stack.enter_async_context(sse_ctx)
-        mcp_session = await mcp_exit_stack.enter_async_context(ClientSession(*streams))
-        await mcp_session.initialize()
-        
-        nexus_model = get_model(tools_list=gemini_tools)
-        chat_session = nexus_model.start_chat(enable_automatic_function_calling=True)
-        logging.info("Connected to FastMCP and initialized NEXUS reasoning core.")
-    except Exception as e:
-        logging.error(f"Failed to connect to MCP: {e}")
+# ── Autonomous background scan ─────────────────────────────────────────────────
 
 async def run_autonomous_scan():
+    """Every 5 minutes pull live data and run AI analysis."""
     while True:
-        await asyncio.sleep(300) # Every 5 minutes
-        if chat_session:
-            prompt = "Run an autonomous scan of major shipping corridors for disruptions and re-optimise if needed. Only output if severity > 0.85."
-            try:
-                # Run the background scan asynchronously
-                await chat_session.send_message_async(prompt)
-                # Output is generated but we might push it via SSE if it's high severity.
-            except Exception as e:
-                logging.error(f"Scan failed: {e}")
+        await asyncio.sleep(300)
+        if not await mcp_available():
+            logging.warning("Skipping autonomous scan — MCP tools unavailable")
+            continue
+        try:
+            logging.info("🔍 Running autonomous global scan...")
+            disruptions, geo_risk, weather, ports, vessels = await asyncio.gather(
+                call_tool("get_disruption_signals", {"region": "global", "hours_back": 6}),
+                call_tool("get_geopolitical_risk_index", {"country_codes": ["CN", "SA", "EG", "IR", "RU", "UA", "TW"]}),
+                call_tool("get_weather_hazards", {"lat": 12.5, "lon": 43.5, "radius_km": 800}),
+                call_tool("get_port_congestion", {"port_codes": ["SGSIN", "CNSHA", "AEDXB", "EGPSE"]}),
+                call_tool("get_vessel_positions", {"bbox": "-180,-90,180,90"}),
+                return_exceptions=True,
+            )
+            context = {
+                "scan_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "disruptions": disruptions if not isinstance(disruptions, Exception) else {},
+                "geopolitical_risk": geo_risk if not isinstance(geo_risk, Exception) else {},
+                "weather_hazards": weather if not isinstance(weather, Exception) else {},
+                "port_congestion": ports if not isinstance(ports, Exception) else {},
+                "vessel_activity": vessels if not isinstance(vessels, Exception) else {},
+            }
+            messages = [{
+                "role": "user",
+                "content": (
+                    "AUTONOMOUS GLOBAL SCAN — analyze this live intel and produce a concise "
+                    "threat assessment. Only highlight corridors with severity > 0.75. "
+                    "Format: region → risk → recommended action.\n\n"
+                    f"```json\n{json.dumps(context, indent=2)}\n```"
+                ),
+            }]
+            result = await asyncio.to_thread(complete_reasoning, messages, None)
+            if result:
+                logging.info("📡 Scan result:\n%s", result[:500])
+        except Exception as e:
+            logging.error("Autonomous scan error: %s", e)
+
+
+# ── Lifecycle ──────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
 async def startup_event():
-    asyncio.create_task(connect_to_mcp_server())
     asyncio.create_task(run_autonomous_scan())
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    await mcp_exit_stack.aclose()
+    pass
+
+
+# ── SSE streaming endpoint ─────────────────────────────────────────────────────
 
 @app.get("/agent/stream")
-async def stream_reasoning_to_frontend(query: str = "What is the current risk in the Red Sea?"):
+async def stream_agent_response(query: str = "What is the current risk in the Red Sea?"):
+    """
+    Pipeline:
+    1. Fetch live data from all 5 MCP tools in parallel via HTTP
+    2. Inject data as context into the prompt
+    3. Stream AI response using a free OpenRouter model
+    """
+
     async def event_generator():
-        if not chat_session:
-            yield f"data: {json.dumps({'error': 'Agent not initialized yet'})}\n\n"
-            return
-            
         try:
-            response_stream = await chat_session.send_message_async(query, stream=True)
-            async for chunk in response_stream:
-                if chunk.text:
-                    yield f"data: {json.dumps({'text': chunk.text})}\n\n"
+            # ── Step 1: Check MCP and fetch data ──────────────────────────
+            mcp_up = await mcp_available()
+            mcp_context = {}
+
+            if mcp_up:
+                msg_start = json.dumps({"text": "[🔧 Fetching live intel from all sensors...]\n\n"})
+                yield f"data: {msg_start}\n\n"
+
+                results = await asyncio.gather(
+                    call_tool("get_disruption_signals", {"region": "global", "hours_back": 12}),
+                    call_tool("get_geopolitical_risk_index", {"country_codes": ["CN", "SA", "EG", "IR", "RU", "TW", "UA"]}),
+                    call_tool("get_weather_hazards", {"lat": 12.5, "lon": 43.5, "radius_km": 800}),
+                    call_tool("get_port_congestion", {"port_codes": ["SGSIN", "CNSHA", "AEDXB", "EGPSE", "NLRTM"]}),
+                    call_tool("get_vessel_positions", {"bbox": "32,10,45,30"}),
+                    return_exceptions=True,
+                )
+                labels = ["disruptions", "geopolitical_risk", "weather_hazards", "port_congestion", "vessel_positions"]
+                for label, result in zip(labels, results):
+                    mcp_context[label] = {"error": str(result)} if isinstance(result, Exception) else result
+
+                msg_ready = json.dumps({"text": "[✅ Live data acquired — reasoning now...]\n\n"})
+                yield f"data: {msg_ready}\n\n"
+            else:
+                msg_offline = json.dumps({"text": "[⚠️ Tools offline — reasoning from model knowledge]\n\n"})
+                yield f"data: {msg_offline}\n\n"
+
+            # ── Step 2: Build prompt with injected context ─────────────────
+            context_block = ""
+            if mcp_context:
+                context_block = (
+                    "\n\n---\n**LIVE NEXUS INTELLIGENCE FEED** (fetched just now):\n"
+                    "```json\n" + json.dumps(mcp_context, indent=2) + "\n```\n---\n\n"
+                )
+
+            messages = [{"role": "user", "content": query + context_block}]
+
+            # ── Step 3: Stream AI response ─────────────────────────────────
+            loop = asyncio.get_event_loop()
+            queue: asyncio.Queue = asyncio.Queue()
+            SENTINEL = object()
+
+            def producer():
+                try:
+                    for chunk in stream_reasoning(messages, tool_executor=None):
+                        asyncio.run_coroutine_threadsafe(queue.put(chunk), loop).result()
+                except Exception as exc:
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put({"__error__": str(exc)}), loop
+                    ).result()
+                finally:
+                    asyncio.run_coroutine_threadsafe(queue.put(SENTINEL), loop).result()
+
+            t = threading.Thread(target=producer, daemon=True)
+            t.start()
+
+            while True:
+                item = await queue.get()
+                if item is SENTINEL:
+                    break
+                if isinstance(item, dict) and "__error__" in item:
+                    yield f"data: {json.dumps({'error': item['__error__']})}\n\n"
+                    break
+                yield f"data: {json.dumps({'text': item})}\n\n"
+
             yield f"data: {json.dumps({'status': 'done'})}\n\n"
+
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
-            
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# ── Utility endpoints ──────────────────────────────────────────────────────────
 
 @app.get("/agent/tool-log")
 async def get_tool_log():
-    return tool_call_log
+    return tool_call_log[-50:]
+
+
+@app.get("/health")
+async def health():
+    mcp_up = await mcp_available()
+    return {
+        "status": "ok",
+        "mcp_connected": mcp_up,
+        "tool_calls_made": len(tool_call_log),
+        **get_model_status(),
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
