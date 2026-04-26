@@ -41,29 +41,70 @@ const PANELS: Record<PanelId, React.FC> = {
 export default function App() {
   const setSystemStatus = useSupplyChainStore(s => s.setSystemStatus);
   const setVessels      = useSupplyChainStore(s => s.setVessels);
+  const setThreats      = useSupplyChainStore(s => s.setThreats);
   const [active, setActive] = useState<PanelId>('oracle');
 
   useEffect(() => {
+    // 1. Fetch live threats from backend ORACLE once on mount
+    fetch('/api/threats/active')
+      .then(r => r.json())
+      .then(data => {
+        if (data.threats && data.threats.length > 0) {
+          // Normalize dates
+          const now = new Date().toISOString();
+          const threats = data.threats.map((t: any) => ({
+            ...t,
+            createdAt: t.createdAt || now,
+            updatedAt: t.updatedAt || now
+          }));
+          setThreats(threats);
+        }
+      })
+      .catch(err => console.warn('Failed to fetch live threats:', err));
+
+    // 2. Poll health
     const poll = async () => {
       try {
-        const r = await fetch('http://127.0.0.1:8002/health');
-        setSystemStatus({ apiHealth: r.ok ? 'Live' : 'Degraded', lastUpdated: new Date().toISOString() });
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const d = await res.json();
+          useSupplyChainStore.setState({ threats: d.threats, systemStatus: { apiHealth: 'Online', lastUpdated: new Date().toISOString() } });
+        }
       } catch { setSystemStatus({ apiHealth: 'Offline', lastUpdated: new Date().toISOString() }); }
     };
     poll();
     const t = setInterval(poll, 10000);
 
-    const ws = new WebSocket('ws://127.0.0.1:8001/ws');
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    // @ts-ignore
+    window.__ws = ws; // Expose for supplyChainStore
+
     ws.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
+        if (d.type === 'SYNC_ACTION') {
+          // Bypass action trigger loop by using setState directly
+          if (d.action === 'addRoute') {
+            useSupplyChainStore.setState(s => ({ routes: [...s.routes, d.payload] }));
+          } else if (d.action === 'updateRoute') {
+            useSupplyChainStore.setState(s => ({ routes: s.routes.map(r => r.id === d.payload.id ? { ...r, ...d.payload.patch } : r) }));
+          } else if (d.action === 'removeRoute') {
+            useSupplyChainStore.setState(s => ({ routes: s.routes.filter(r => r.id !== d.payload) }));
+          } else if (d.action === 'addLedgerEntry') {
+            useSupplyChainStore.setState(s => ({ ledgerEntries: [d.payload, ...s.ledgerEntries] }));
+          }
+          return;
+        }
+
         if (d.Message?.PositionReport) {
           const r = d.Message.PositionReport;
           const v = { mmsi: d.MetaData.MMSI.toString(), lat: r.Latitude, lon: r.Longitude, speed: r.Sog, heading: r.TrueHeading, vessel_name: d.MetaData.ShipName || 'Unknown', flag: '' };
           useSupplyChainStore.setState(state => {
-            const vl = [...state.vessels];
+            let vl = [...state.vessels];
             const i = vl.findIndex(x => x.mmsi === v.mmsi);
             if (i >= 0) vl[i] = v; else vl.push(v);
+            if (vl.length > 300) vl = vl.slice(vl.length - 300); // Prevent memory leak
             return { vessels: vl };
           });
         }

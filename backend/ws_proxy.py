@@ -29,7 +29,14 @@ async def websocket_endpoint(websocket: WebSocket):
     connected_clients.add(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            data = await websocket.receive_text()
+            # Broadcast state sync events to all other connected clients
+            for client in connected_clients:
+                if client != websocket:
+                    try:
+                        await client.send_text(data)
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         connected_clients.remove(websocket)
 
@@ -98,4 +105,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

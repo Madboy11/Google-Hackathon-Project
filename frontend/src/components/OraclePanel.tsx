@@ -64,7 +64,7 @@ export default function OraclePanel() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const r = await fetch('http://127.0.0.1:8002/health');
+        const r = await fetch('/orch/health');
         if (r.ok) {
           const d = await r.json();
           setCurrentModel(d.current_model?.split('/').pop() || 'free-model');
@@ -86,7 +86,7 @@ export default function OraclePanel() {
     addAgentMessage({ id: agentMsgId, content: '', role: 'agent', timestamp: new Date().toISOString() });
 
     try {
-      const response = await fetch(`http://127.0.0.1:8002/agent/stream?query=${encodeURIComponent(query)}`);
+      const response = await fetch(`/orch/agent/stream?query=${encodeURIComponent(query)}`);
       if (!response.body) throw new Error('No stream body');
 
       const reader = response.body.getReader();

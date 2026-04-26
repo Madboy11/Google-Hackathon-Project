@@ -310,19 +310,23 @@ async def tools_health():
     return {"status": "ok", "tools": list(_TOOL_REGISTRY.keys())}
 
 
-if __name__ == "__main__":
+from prefect import flow
+
+@flow(name="nexus-mcp-server")
+def main():
     import uvicorn
     import threading
 
     def run_rest():
-        uvicorn.run(rest_app, host="127.0.0.1", port=8003, log_level="warning")
+        uvicorn.run(rest_app, host="0.0.0.0", port=8003, log_level="warning")
 
     t = threading.Thread(target=run_rest, daemon=True)
     t.start()
-    print("REST tool bridge running on http://127.0.0.1:8003/tools")
+    print("REST tool bridge running on http://0.0.0.0:8003/tools")
 
-    # FastMCP SSE on port 8000 (main thread)
-    mcp.run(transport="sse")
+    # FastMCP SSE on port 8004 (main thread)
+    mcp.run(transport="sse", port=8004)
 
 
-
+if __name__ == "__main__":
+    main()

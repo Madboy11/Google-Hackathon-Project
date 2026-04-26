@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Navigation, Plus, Trash2, RefreshCw, Loader2, ShieldAlert, CheckCircle, AlertTriangle, ArrowRight, X } from 'lucide-react';
 import { useSupplyChainStore, ActiveRoute, RouteStatus } from '../store/supplyChainStore';
-import { generateMaritimeRoute, estimateVoyageDays, hasAlternateRoute } from '../utils/maritimeRouter';
+import { generateMaritimeRoute, generateDynamicRoute, estimateVoyageDays, hasAlternateRoute } from '../utils/maritimeRouter';
 
 // ── Port coordinates lookup ────────────────────────────────────────────────
 const PORT_COORDS: Record<string, [number, number]> = {
@@ -50,6 +50,7 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
   const addLedgerEntry = useSupplyChainStore(s => s.addLedgerEntry);
   const [origin, setOrigin] = useState(PORTS[0]);
   const [dest, setDest] = useState(PORTS[1]);
+  const [mode, setMode] = useState<'sea' | 'land' | 'air'>('sea');
   const [cargo, setCargo] = useState(CARGO_TYPES[0]);
   const [carrier, setCarrier] = useState('');
   const [departure, setDeparture] = useState(() => new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10));
@@ -61,17 +62,18 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
     setError('');
     setLoading(true);
     try {
-      // Generate realistic maritime waypoints via sea-lane graph
-      const seaWaypoints = generateMaritimeRoute(origin, dest);
-      const fallbackWaypoints = [PORT_COORDS[origin] ?? [0, 0], PORT_COORDS[dest] ?? [0, 0]];
-      const waypoints = seaWaypoints.length >= 2 ? seaWaypoints : fallbackWaypoints;
-      const estDays = seaWaypoints.length >= 2 ? estimateVoyageDays(seaWaypoints) : 20;
+      const originCoords = PORT_COORDS[origin] ?? [0, 0];
+      const destCoords = PORT_COORDS[dest] ?? [0, 0];
+      
+      const newWaypoints = await generateDynamicRoute(origin, dest, originCoords, destCoords, mode, false);
+      const waypoints = newWaypoints.length >= 2 ? newWaypoints : [originCoords, destCoords];
+      const estDays = newWaypoints.length >= 2 ? estimateVoyageDays(newWaypoints, mode === 'land' ? 50 : 14) : 20;
 
       // Try MCP for risk score enrichment
       let riskScore = 0.3;
       let costUSD = 45000 + estDays * 2800;
       try {
-        const res = await fetch('http://127.0.0.1:8003/tools/call', {
+        const res = await fetch('/mcp/tools/call', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tool: 'optimise_route', args: { origin_port: origin, destination_port: dest, cargo_type: cargo.toLowerCase(), departure_date: departure } }),
@@ -86,11 +88,12 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
         origin,
         destination: dest,
         originCoords: PORT_COORDS[origin] ?? [0, 0],
-        destCoords: PORT_COORDS[dest] ?? [0, 0],
+        destCoords,
         cargo,
         carrier: carrier || 'NEXUS Auto',
         departureDate: departure,
         waypoints,
+        mode,
         riskScore,
         estimatedDays: estDays,
         costUSD,
@@ -144,11 +147,21 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className="text-[10px] text-slate-600 font-mono uppercase block mb-1">Transport Mode</label>
+              <select value={mode} onChange={e => setMode(e.target.value as 'sea' | 'land' | 'air')} className={sel}>
+                <option value="sea">Maritime (Sea Freight)</option>
+                <option value="land">Overland (Truck/Rail)</option>
+                <option value="air">Aviation (Air Freight)</option>
+              </select>
+            </div>
+            <div>
               <label className="text-[10px] text-slate-600 font-mono uppercase block mb-1">Cargo Type</label>
               <select value={cargo} onChange={e => setCargo(e.target.value)} className={sel}>
                 {CARGO_TYPES.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] text-slate-600 font-mono uppercase block mb-1">Carrier</label>
               <input value={carrier} onChange={e => setCarrier(e.target.value)} placeholder="e.g. MSC, Maersk" className={sel} />
@@ -175,6 +188,7 @@ export default function NavigatorPanel() {
   const updateRoute = useSupplyChainStore(s => s.updateRoute);
   const removeRoute = useSupplyChainStore(s => s.removeRoute);
   const addLedgerEntry = useSupplyChainStore(s => s.addLedgerEntry);
+  const threats = useSupplyChainStore(s => s.threats);
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [reroutingId, setReroutingId] = useState<string | null>(null);
@@ -187,13 +201,13 @@ export default function NavigatorPanel() {
     try {
       // Use ALTERNATE route to visibly change path (e.g. Suez → Cape of Good Hope)
       const useAlt = !route.autoRerouted && hasAlternateRoute(route.origin, route.destination);
-      const newWaypoints = generateMaritimeRoute(route.origin, route.destination, useAlt);
+      const newWaypoints = await generateDynamicRoute(route.origin, route.destination, route.originCoords, route.destCoords, route.mode || 'sea', useAlt);
       const waypoints = newWaypoints.length >= 2 ? newWaypoints : route.waypoints;
-      const estDays = newWaypoints.length >= 2 ? estimateVoyageDays(newWaypoints) : route.estimatedDays;
+      const estDays = newWaypoints.length >= 2 ? estimateVoyageDays(newWaypoints, route.mode === 'land' ? 50 : 14) : route.estimatedDays;
 
       // Rerouting reduces risk since it avoids the danger zone
       const newRisk = Math.max(0.08, route.riskScore * (useAlt ? 0.45 : 0.75));
-      const newCost = Math.round(route.costUSD * (useAlt ? 1.35 : 1.1)); // alternate is longer = costlier
+      const newCost = 45000 + (estDays * 2800) + (useAlt ? 15000 : 0); // Deterministic cost based on days
 
       updateRoute(route.id, {
         waypoints,
@@ -203,11 +217,15 @@ export default function NavigatorPanel() {
         status: newRisk > 0.7 ? 'at_risk' : 'active',
         autoRerouted: true,
         previousRiskScore: route.riskScore,
+        // Optional: you could add a mitigation string to the route state here if desired
       });
+      
+      const mitigationText = useAlt ? 'avoiding danger zone via alternate corridor' : 'deploying armed escort & increasing vessel speed';
+      
       addLedgerEntry({
         type: 'ROUTE_REROUTED',
-        summary: `Route rerouted via ${useAlt ? 'alternate corridor' : 'optimised path'}: ${route.origin.replace('Port of ', '')} → ${route.destination.replace('Port of ', '')} (risk ${Math.round(route.riskScore * 100)}% → ${Math.round(newRisk * 100)}%)`,
-        payload: { routeId: route.id, oldRisk: route.riskScore, newRisk, waypointCount: waypoints.length, alternate: useAlt },
+        summary: `Oracle Intervention: ${mitigationText} for ${route.origin.replace('Port of ', '')} → ${route.destination.replace('Port of ', '')} (risk ${Math.round(route.riskScore * 100)}% → ${Math.round(newRisk * 100)}%)`,
+        payload: { routeId: route.id, oldRisk: route.riskScore, newRisk, waypointCount: waypoints.length, alternate: useAlt, mitigation: mitigationText },
         initiatedBy: 'oracle',
         timestamp: new Date().toISOString(),
       });
@@ -299,56 +317,72 @@ export default function NavigatorPanel() {
         </div>
 
         {/* Detail pane */}
-        {selectedRoute && (
-          <div className="w-1/2 overflow-y-auto p-3 flex flex-col gap-3">
-            <div>
-              <div className="text-[10px] text-slate-500 font-mono mb-0.5 uppercase tracking-wider">Route Detail</div>
-              <div className="text-xs font-semibold text-slate-200">
-                {selectedRoute.origin.replace('Port of ', '')}
-                <span className="text-slate-600 mx-1">→</span>
-                {selectedRoute.destination.replace('Port of ', '')}
+        {selectedRoute && (() => {
+          const activeThreats = threats.filter(t => t.status === 'Active').sort((a, b) => b.severity - a.severity);
+          const primaryThreat = activeThreats.length > 0 ? activeThreats[0] : null;
+          const altExists = !selectedRoute.autoRerouted && hasAlternateRoute(selectedRoute.origin, selectedRoute.destination);
+          const rerouteActionText = selectedRoute.autoRerouted 
+            ? "Already Rerouted" 
+            : (altExists ? "Oracle Reroute (Avoid Danger Zone)" : "Oracle Mitigate (Speed & Escort)");
+
+          return (
+            <div className="w-1/2 overflow-y-auto p-3 flex flex-col gap-3">
+              <div>
+                <div className="text-[10px] text-slate-500 font-mono mb-0.5 uppercase tracking-wider">Route Detail</div>
+                <div className="text-xs font-semibold text-slate-200">
+                  {selectedRoute.origin.replace('Port of ', '')}
+                  <span className="text-slate-600 mx-1">→</span>
+                  {selectedRoute.destination.replace('Port of ', '')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                {[
+                  ['Cargo', selectedRoute.cargo],
+                  ['Carrier', selectedRoute.carrier],
+                  ['Departure', new Date(selectedRoute.departureDate).toLocaleDateString()],
+                  ['ETA', `${selectedRoute.estimatedDays} days`],
+                  ['Cost', `$${selectedRoute.costUSD.toLocaleString()}`],
+                  ['Waypoints', `${selectedRoute.waypoints.length}`],
+                ].map(([k, v]) => (
+                  <div key={k} className="rounded bg-slate-900/40 border border-slate-800/40 px-2 py-1.5">
+                    <div className="text-slate-600 text-[9px] uppercase">{k}</div>
+                    <div className="text-slate-300 truncate">{v}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div className="text-[9px] text-slate-600 font-mono uppercase mb-1">Risk Score</div>
+                <RiskBar value={selectedRoute.riskScore} />
+                {selectedRoute.previousRiskScore != null ? (
+                  <div className="text-[10px] font-mono text-yellow-500 mt-1">
+                    Was {Math.round(selectedRoute.previousRiskScore * 100)}% → now {Math.round(selectedRoute.riskScore * 100)}%
+                  </div>
+                ) : (
+                  selectedRoute.riskScore > 0.3 && primaryThreat && (
+                    <div className="mt-2 rounded bg-red-500/10 border border-red-500/20 px-2 py-1.5 text-[10px] font-mono">
+                      <span className="text-red-400 font-bold uppercase block mb-0.5">Primary Risk Factor:</span>
+                      <span className="text-slate-300">{primaryThreat.region} - {primaryThreat.type} ({Math.round(primaryThreat.severity * 100)}% Sev)</span>
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2">
+                <button onClick={() => handleReroute(selectedRoute)} disabled={reroutingId === selectedRoute.id || selectedRoute.autoRerouted}
+                  className="w-full py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono hover:bg-yellow-500/20 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+                  {reroutingId === selectedRoute.id ? <><Loader2 size={12} className="animate-spin" />Rerouting...</> : <><RefreshCw size={12} />{rerouteActionText}</>}
+                </button>
+                <button onClick={() => handleDelete(selectedRoute.id)}
+                  className="w-full py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-xs font-mono hover:bg-red-500/10 transition-all flex items-center justify-center gap-2">
+                  <Trash2 size={12} />Cancel Route
+                </button>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-mono">
-              {[
-                ['Cargo', selectedRoute.cargo],
-                ['Carrier', selectedRoute.carrier],
-                ['Departure', new Date(selectedRoute.departureDate).toLocaleDateString()],
-                ['ETA', `${selectedRoute.estimatedDays} days`],
-                ['Cost', `$${selectedRoute.costUSD.toLocaleString()}`],
-                ['Waypoints', `${selectedRoute.waypoints.length}`],
-              ].map(([k, v]) => (
-                <div key={k} className="rounded bg-slate-900/40 border border-slate-800/40 px-2 py-1.5">
-                  <div className="text-slate-600 text-[9px] uppercase">{k}</div>
-                  <div className="text-slate-300 truncate">{v}</div>
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <div className="text-[9px] text-slate-600 font-mono uppercase mb-1">Risk Score</div>
-              <RiskBar value={selectedRoute.riskScore} />
-              {selectedRoute.previousRiskScore != null && (
-                <div className="text-[10px] font-mono text-yellow-500 mt-1">
-                  Was {Math.round(selectedRoute.previousRiskScore * 100)}% → now {Math.round(selectedRoute.riskScore * 100)}%
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-col gap-2">
-              <button onClick={() => handleReroute(selectedRoute)} disabled={reroutingId === selectedRoute.id}
-                className="w-full py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-mono hover:bg-yellow-500/20 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
-                {reroutingId === selectedRoute.id ? <><Loader2 size={12} className="animate-spin" />Rerouting...</> : <><RefreshCw size={12} />Oracle Reroute</>}
-              </button>
-              <button onClick={() => handleDelete(selectedRoute.id)}
-                className="w-full py-2 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-xs font-mono hover:bg-red-500/10 transition-all flex items-center justify-center gap-2">
-                <Trash2 size={12} />Cancel Route
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

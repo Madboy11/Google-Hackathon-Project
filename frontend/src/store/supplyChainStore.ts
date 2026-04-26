@@ -41,6 +41,7 @@ export interface ActiveRoute {
   estimatedDays: number;
   costUSD: number;
   status: RouteStatus;
+  mode?: 'sea' | 'land' | 'air';                // transport mode
   createdAt: string;
   updatedAt: string;
   // Oracle auto-reroute tracking
@@ -154,6 +155,7 @@ interface SupplyChainState {
   addAgentMessage: (m: AgentMessage) => void;
 
   // threats
+  setThreats: (t: ThreatVector[]) => void;
   addThreat: (t: Omit<ThreatVector, 'id' | 'createdAt' | 'updatedAt' | 'escalatedToLedger'>) => void;
   updateThreat: (id: string, patch: Partial<ThreatVector>) => void;
   removeThreat: (id: string) => void;
@@ -184,6 +186,14 @@ function makeTxHash(): string {
   return '0x' + Array.from({ length: 16 }, () =>
     Math.floor(Math.random() * 16).toString(16)
   ).join('').toUpperCase();
+}
+
+function broadcastSync(action: string, payload: any) {
+  // @ts-ignore
+  const ws = window.__ws;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'SYNC_ACTION', action, payload }));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -234,17 +244,27 @@ export const useSupplyChainStore = create<SupplyChainState>()(
 
       // ── routes ──
       addRoute: (route) =>
-        set((state) => ({ routes: [...state.routes, route] })),
+        set((state) => {
+          broadcastSync('addRoute', route);
+          return { routes: [...state.routes, route] };
+        }),
       updateRoute: (id, patch) =>
-        set((state) => ({
-          routes: state.routes.map((r) =>
-            r.id === id ? { ...r, ...patch, updatedAt: new Date().toISOString() } : r
-          ),
-        })),
+        set((state) => {
+          broadcastSync('updateRoute', { id, patch });
+          return {
+            routes: state.routes.map((r) =>
+              r.id === id ? { ...r, ...patch, updatedAt: new Date().toISOString() } : r
+            ),
+          };
+        }),
       removeRoute: (id) =>
-        set((state) => ({ routes: state.routes.filter((r) => r.id !== id) })),
+        set((state) => {
+          broadcastSync('removeRoute', id);
+          return { routes: state.routes.filter((r) => r.id !== id) };
+        }),
 
       // ── threats ──
+      setThreats: (threats) => set({ threats }),
       addThreat: (threat) => {
         const id = `th-${Date.now()}`;
         const now = new Date().toISOString();
@@ -284,10 +304,13 @@ export const useSupplyChainStore = create<SupplyChainState>()(
           }));
         }, 2000);
 
-        set((state) => ({
-          ledgerEntries: [newEntry, ...state.ledgerEntries],
-          blockHeight: newHeight,
-        }));
+        set((state) => {
+          broadcastSync('addLedgerEntry', newEntry);
+          return {
+            ledgerEntries: [newEntry, ...state.ledgerEntries],
+            blockHeight: newHeight,
+          };
+        });
       },
 
       // ── inventory ──

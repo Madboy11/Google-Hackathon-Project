@@ -2,6 +2,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, PathLayer, TextLayer } from '@deck.gl/layers';
+import { TileLayer } from '@deck.gl/geo-layers';
+import { BitmapLayer } from '@deck.gl/layers';
 import { Map } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useSupplyChainStore } from '../store/supplyChainStore';
@@ -58,13 +60,18 @@ function useSimulatedVessels(routes: any[]) {
         const dlon = wp[next][0] - wp[idx][0];
         const heading = Math.atan2(dlon, dlat) * (180 / Math.PI);
 
+        const isLand = route.mode === 'land';
+        const prefix = isLand ? '🚛 Truck' : '🚢 MV';
+        const defaultCarrier = isLand ? 'NEXUS Logistics' : 'NEXUS Auto';
+
         return {
           routeId: route.id,
           position: [lon, lat],
-          name: `${route.carrier || 'MV NEXUS'} · ${route.origin.replace('Port of ', '').slice(0, 6)} → ${route.destination.replace('Port of ', '').slice(0, 6)}`,
+          name: `${prefix} ${route.carrier || defaultCarrier} · ${route.origin.replace('Port of ', '').slice(0, 6)} → ${route.destination.replace('Port of ', '').slice(0, 6)}`,
           status: route.status,
+          mode: route.mode || 'sea',
           heading,
-          speed: 12 + Math.random() * 4,
+          speed: (isLand ? 45 : 12) + Math.random() * (isLand ? 15 : 4),
           progress: Math.round(progress * 100),
         };
       })
@@ -76,6 +83,14 @@ export default function SupplyChainMap() {
   const vessels = useSupplyChainStore(state => state.vessels);
   const routes = useSupplyChainStore(state => state.routes);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [weatherKey, setWeatherKey] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/config/weather-key')
+      .then(r => r.json())
+      .then(d => { if (d.key) setWeatherKey(d.key); })
+      .catch(() => {});
+  }, []);
 
   // Simulated vessels moving along routes
   const simVessels = useSimulatedVessels(routes);
@@ -92,6 +107,24 @@ export default function SupplyChainMap() {
   [routes]);
 
   const layers = useMemo(() => [
+    // ── Live Weather Radar (OpenWeatherMap Precipitation) ──
+    weatherKey ? new TileLayer({
+      id: 'weather-radar',
+      data: `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${weatherKey}`,
+      minZoom: 0,
+      maxZoom: 19,
+      tileSize: 256,
+      renderSubLayers: (props: any) => {
+        const { boundingBox } = props.tile;
+        return new BitmapLayer(props, {
+          data: null,
+          image: props.data,
+          bounds: [boundingBox[0][0], boundingBox[0][1], boundingBox[1][0], boundingBox[1][1]],
+          transparentColor: [0, 0, 0, 0],
+          opacity: 0.6
+        });
+      }
+    }) : null,
     // ── Active routes (PathLayer per route for distinct colors) ──
     ...routes.map(route =>
       new PathLayer({
@@ -151,17 +184,23 @@ export default function SupplyChainMap() {
       getFillColor: (d: any) =>
         d.status === 'at_risk' ? [239, 68, 68, 255] :
         d.status === 'rerouting' ? [234, 179, 8, 255] :
-        [59, 130, 246, 255],
+        d.mode === 'land' ? [249, 115, 22, 255] : // Orange for trucks
+        d.mode === 'air' ? [250, 204, 21, 255] : // Yellow for planes
+        [59, 130, 246, 255], // Blue for ships
       getRadius: 22000,
       radiusMinPixels: 5,
       radiusMaxPixels: 10,
       pickable: true,
       onHover: ({ object, x, y }: any) => {
-        if (object) setTooltip({
-          x, y,
-          text: `🚢 ${object.name}\nSpeed: ${object.speed.toFixed(1)} kn | Heading: ${Math.round(object.heading)}°\nProgress: ${object.progress}%`,
-        });
-        else setTooltip(null);
+        if (object) {
+          const icon = object.mode === 'air' ? '✈️' : object.mode === 'land' ? '🚚' : '🚢';
+          setTooltip({
+            x, y,
+            text: `${icon} ${object.name}\nSpeed: ${object.speed.toFixed(1)} kn | Heading: ${Math.round(object.heading)}°\nProgress: ${object.progress}%`,
+          });
+        } else {
+          setTooltip(null);
+        }
       },
     }),
 

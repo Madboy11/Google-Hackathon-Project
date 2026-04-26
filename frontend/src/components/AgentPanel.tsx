@@ -44,7 +44,7 @@ export default function AgentPanel() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8002/agent/stream?query=${encodeURIComponent(query)}`
+        `/orch/agent/stream?query=${encodeURIComponent(query)}`
       );
       if (!response.body) throw new Error('No stream body');
 

@@ -138,7 +138,7 @@ const CORRIDORS: Record<string, Coord[]> = {
     [32.55, 29.95],
   ],
   // Busan → Shanghai
-  busan_shanghai: [[129.04, 35.10], [126.00, 34.00], [123.00, 32.00], [121.47, 31.23]],
+  busan_shanghai: [[129.04, 35.10], [128.00, 34.00], [126.50, 33.00], [124.50, 31.80], [122.50, 31.00], [121.47, 31.23]],
   // Antwerp → Rotterdam
   antwerp_rotterdam: [[4.40, 51.23], [4.40, 51.60], [4.40, 51.90]],
 };
@@ -233,6 +233,15 @@ const ROUTE_TABLE: Record<string, RouteTemplate> = {
   // Hong Kong → Singapore
   'hong_kong→singapore': { corridors: ['hongkong_singapore'] },
   'singapore→hong_kong': { corridors: ['hongkong_singapore'], reverse: [true] },
+  // Mumbai → Hong Kong
+  'mumbai→hong_kong': {
+    corridors: ['mumbai_colombo', 'singapore_colombo', 'hongkong_singapore'],
+    reverse: [false, true, true]
+  },
+  'hong_kong→mumbai': {
+    corridors: ['hongkong_singapore', 'singapore_colombo', 'mumbai_colombo'],
+    reverse: [false, false, true]
+  },
   // Hong Kong → Rotterdam
   'hong_kong→rotterdam': {
     corridors: ['hongkong_singapore', 'singapore_colombo', 'colombo_aden', 'aden_suez', 'suez_gibraltar', 'gibraltar_rotterdam'],
@@ -271,6 +280,42 @@ const ROUTE_TABLE: Record<string, RouteTemplate> = {
   // Colombo → Singapore
   'colombo→singapore': { corridors: ['singapore_colombo'], reverse: [true] },
   'singapore→colombo': { corridors: ['singapore_colombo'] },
+  // LA → Antwerp
+  'los_angeles→antwerp': { 
+    corridors: ['newyork_losangeles', 'rotterdam_newyork', 'antwerp_rotterdam'], 
+    reverse: [true, true, true] 
+  },
+  'antwerp→los_angeles': { 
+    corridors: ['antwerp_rotterdam', 'rotterdam_newyork', 'newyork_losangeles'] 
+  },
+  // LA → Rotterdam
+  'los_angeles→rotterdam': { 
+    corridors: ['newyork_losangeles', 'rotterdam_newyork'], 
+    reverse: [true, true] 
+  },
+  'rotterdam→los_angeles': { 
+    corridors: ['rotterdam_newyork', 'newyork_losangeles'] 
+  },
+  // Antwerp → Colombo
+  'antwerp→colombo': { 
+    corridors: ['antwerp_rotterdam', 'gibraltar_rotterdam', 'suez_gibraltar', 'aden_suez', 'colombo_aden'],
+    reverse: [false, true, true, true, true]
+  },
+  'colombo→antwerp': { 
+    corridors: ['colombo_aden', 'aden_suez', 'suez_gibraltar', 'gibraltar_rotterdam', 'antwerp_rotterdam'],
+    reverse: [false, false, false, false, true]
+  },
+  // Antwerp → Shanghai
+  'antwerp→shanghai': {
+    corridors: ['antwerp_rotterdam', 'gibraltar_rotterdam', 'suez_gibraltar', 'aden_suez', 'colombo_aden', 'singapore_colombo', 'shanghai_singapore'],
+    reverse: [false, true, true, true, true, true, true]
+  },
+  'shanghai→antwerp': {
+    corridors: ['shanghai_singapore', 'singapore_colombo', 'colombo_aden', 'aden_suez', 'suez_gibraltar', 'gibraltar_rotterdam', 'antwerp_rotterdam'],
+    reverse: [false, false, false, false, false, false, true]
+  },
+  // Shanghai → Busan
+  'shanghai→busan': { corridors: ['busan_shanghai'], reverse: [true] },
 };
 
 // ── Build route from corridor segments ──────────────────────────────────
@@ -292,6 +337,19 @@ function buildRoute(template: RouteTemplate, useAlt: boolean): Coord[] {
       ? 1 : 0;
     result.push(...seg.slice(start));
   }
+
+  // Normalize longitudes to prevent wrap-around glitch
+  for (let i = 1; i < result.length; i++) {
+    let prevLon = result[i - 1][0];
+    let currLon = result[i][0];
+    // If the jump is larger than 180 degrees, it crossed the antimeridian
+    if (currLon - prevLon > 180) {
+      result[i][0] -= 360;
+    } else if (currLon - prevLon < -180) {
+      result[i][0] += 360;
+    }
+  }
+
   return result;
 }
 
@@ -307,6 +365,63 @@ export function generateMaritimeRoute(originPort: string, destPort: string, alte
   if (!template) return []; // unknown pair
 
   return buildRoute(template, alternate);
+}
+
+export async function generateDynamicRoute(
+  originPort: string, 
+  destPort: string, 
+  originCoords: [number, number], 
+  destCoords: [number, number], 
+  mode: 'sea' | 'land' | 'air' = 'sea', 
+  alternate = false
+): Promise<Coord[]> {
+  if (mode === 'air') {
+    // Generate a simple great circle path with 20 segments
+    const pts: Coord[] = [];
+    const segments = 20;
+    for (let i = 0; i <= segments; i++) {
+      const f = i / segments;
+      const lon = originCoords[0] + (destCoords[0] - originCoords[0]) * f;
+      // Add slight altitude arc approximation
+      const arc = Math.sin(f * Math.PI) * 15; 
+      const lat = originCoords[1] + (destCoords[1] - originCoords[1]) * f + arc;
+      pts.push([lon, lat]);
+    }
+    return pts;
+  }
+
+  if (mode === 'sea') {
+    const seaRoute = generateMaritimeRoute(originPort, destPort, alternate);
+    if (seaRoute.length > 0) return seaRoute;
+    
+    // Autonomous Fallback to Python searoute graph
+    try {
+      const url = `/api/routing/searoute?origin_lon=${originCoords[0]}&origin_lat=${originCoords[1]}&dest_lon=${destCoords[0]}&dest_lat=${destCoords[1]}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.route && data.route.geometry && data.route.geometry.coordinates) {
+        return data.route.geometry.coordinates as Coord[];
+      }
+    } catch (err) {
+      console.warn("Autonomous sea routing failed:", err);
+    }
+    return [originCoords, destCoords]; // Fallback to straight line if API fails
+  }
+
+  // Fallback to land routing via OSRM if mode is land OR sea route not found
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.routes && data.routes.length > 0) {
+      return data.routes[0].geometry.coordinates as Coord[];
+    }
+  } catch (err) {
+    console.warn("OSRM routing failed:", err);
+  }
+  
+  // Final fallback: straight line
+  return [originCoords, destCoords];
 }
 
 export function hasAlternateRoute(originPort: string, destPort: string): boolean {

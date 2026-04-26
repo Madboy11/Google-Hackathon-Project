@@ -5,6 +5,7 @@ import logging
 
 from oracle.engine import oracle_engine
 from oracle.diagnostics import get_system_diagnostics
+from oracle.threat_intel import get_active_threats
 from navigator.engine import navigator_engine
 from buffer.engine import buffer_engine
 
@@ -59,3 +60,30 @@ async def get_safety_stock(sku_id: str):
 @app.post("/inventory/trigger-po")
 async def trigger_po(req: TriggerPORequest):
     return buffer_engine.manual_trigger(req.sku_id, req.quantity)
+
+@app.get("/threats/active")
+async def active_threats(force_refresh: bool = False):
+    threats = get_active_threats(force_refresh=force_refresh)
+    return {"threats": threats}
+
+import searoute as sr
+
+@app.get("/routing/searoute")
+async def get_searoute(origin_lon: float, origin_lat: float, dest_lon: float, dest_lat: float):
+    try:
+        origin = [origin_lon, origin_lat]
+        dest = [dest_lon, dest_lat]
+        
+        # calculate route
+        # include_ports=True makes sure it starts/ends near land properly
+        route = sr.searoute(origin, dest, include_ports=True)
+        return {"route": route}
+    except Exception as e:
+        logging.error(f"Searoute calculation failed: {e}")
+        return {"error": str(e), "route": None}
+
+import os
+
+@app.get("/config/weather-key")
+async def get_weather_key():
+    return {"key": os.getenv("OPENWEATHERMAP_API_KEY", "")}
