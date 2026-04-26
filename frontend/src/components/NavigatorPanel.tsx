@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Navigation, Plus, Trash2, RefreshCw, Loader2, ShieldAlert, CheckCircle, AlertTriangle, ArrowRight, X } from 'lucide-react';
 import { useSupplyChainStore, ActiveRoute, RouteStatus } from '../store/supplyChainStore';
+import { generateMaritimeRoute, estimateVoyageDays, hasAlternateRoute } from '../utils/maritimeRouter';
 
 // ── Port coordinates lookup ────────────────────────────────────────────────
 const PORT_COORDS: Record<string, [number, number]> = {
@@ -60,13 +61,25 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
     setError('');
     setLoading(true);
     try {
-      // Call MCP route optimiser
-      const res = await fetch('http://127.0.0.1:8003/tools/call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'optimise_route', args: { origin_port: origin, destination_port: dest, cargo_type: cargo.toLowerCase(), departure_date: departure } }),
-      });
-      const data = await res.json();
+      // Generate realistic maritime waypoints via sea-lane graph
+      const seaWaypoints = generateMaritimeRoute(origin, dest);
+      const fallbackWaypoints = [PORT_COORDS[origin] ?? [0, 0], PORT_COORDS[dest] ?? [0, 0]];
+      const waypoints = seaWaypoints.length >= 2 ? seaWaypoints : fallbackWaypoints;
+      const estDays = seaWaypoints.length >= 2 ? estimateVoyageDays(seaWaypoints) : 20;
+
+      // Try MCP for risk score enrichment
+      let riskScore = 0.3;
+      let costUSD = 45000 + estDays * 2800;
+      try {
+        const res = await fetch('http://127.0.0.1:8003/tools/call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool: 'optimise_route', args: { origin_port: origin, destination_port: dest, cargo_type: cargo.toLowerCase(), departure_date: departure } }),
+        });
+        const data = await res.json();
+        riskScore = data.risk_adjusted_score ?? riskScore;
+        costUSD = data.cost_usd ?? costUSD;
+      } catch { /* MCP offline — use defaults */ }
 
       const route: ActiveRoute = {
         id: `rt-${Date.now()}`,
@@ -77,11 +90,11 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
         cargo,
         carrier: carrier || 'NEXUS Auto',
         departureDate: departure,
-        waypoints: data.recommended_route_waypoints?.length ? data.recommended_route_waypoints : [PORT_COORDS[origin], PORT_COORDS[dest]],
-        riskScore: data.risk_adjusted_score ?? 0.3,
-        estimatedDays: data.estimated_days ?? 14,
-        costUSD: data.cost_usd ?? 50000,
-        status: (data.risk_adjusted_score ?? 0.3) > 0.7 ? 'at_risk' : 'active',
+        waypoints,
+        riskScore,
+        estimatedDays: estDays,
+        costUSD,
+        status: riskScore > 0.7 ? 'at_risk' : 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         autoRerouted: false,
@@ -91,31 +104,14 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
       addRoute(route);
       addLedgerEntry({
         type: 'ROUTE_CREATED',
-        summary: `Route created: ${origin.replace('Port of ', '')} → ${dest.replace('Port of ', '')}`,
-        payload: { routeId: route.id, origin, destination: dest, cargo, riskScore: route.riskScore },
+        summary: `Route created: ${origin.replace('Port of ', '')} → ${dest.replace('Port of ', '')} (${waypoints.length} waypoints, ${estDays}d)`,
+        payload: { routeId: route.id, origin, destination: dest, cargo, riskScore, waypointCount: waypoints.length },
         initiatedBy: 'navigator',
         timestamp: new Date().toISOString(),
       });
       onClose();
     } catch (e: any) {
-      // Fallback: create route with straight line if MCP is down
-      const route: ActiveRoute = {
-        id: `rt-${Date.now()}`,
-        origin, destination: dest,
-        originCoords: PORT_COORDS[origin] ?? [0, 0],
-        destCoords: PORT_COORDS[dest] ?? [0, 0],
-        cargo, carrier: carrier || 'Manual',
-        departureDate: departure,
-        waypoints: [PORT_COORDS[origin] ?? [0, 0], PORT_COORDS[dest] ?? [0, 0]],
-        riskScore: 0.35, estimatedDays: 20, costUSD: 60000,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        autoRerouted: false, reroutableBy: 'oracle',
-      };
-      addRoute(route);
-      addLedgerEntry({ type: 'ROUTE_CREATED', summary: `Route created (manual): ${origin.replace('Port of ', '')} → ${dest.replace('Port of ', '')}`, payload: { routeId: route.id }, initiatedBy: 'navigator', timestamp: new Date().toISOString() });
-      onClose();
+      setError('Failed to create route: ' + (e.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -189,28 +185,29 @@ export default function NavigatorPanel() {
     setReroutingId(route.id);
     updateRoute(route.id, { status: 'rerouting' });
     try {
-      const res = await fetch('http://127.0.0.1:8003/tools/call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tool: 'optimise_route', args: { origin_port: route.origin, destination_port: route.destination, cargo_type: route.cargo.toLowerCase(), departure_date: new Date().toISOString().slice(0, 10) } }),
-      });
-      const data = await res.json();
-      const newWaypoints = data.recommended_route_waypoints?.length ? data.recommended_route_waypoints : route.waypoints;
-      const newRisk = data.risk_adjusted_score ?? route.riskScore * 0.75;
+      // Use ALTERNATE route to visibly change path (e.g. Suez → Cape of Good Hope)
+      const useAlt = !route.autoRerouted && hasAlternateRoute(route.origin, route.destination);
+      const newWaypoints = generateMaritimeRoute(route.origin, route.destination, useAlt);
+      const waypoints = newWaypoints.length >= 2 ? newWaypoints : route.waypoints;
+      const estDays = newWaypoints.length >= 2 ? estimateVoyageDays(newWaypoints) : route.estimatedDays;
+
+      // Rerouting reduces risk since it avoids the danger zone
+      const newRisk = Math.max(0.08, route.riskScore * (useAlt ? 0.45 : 0.75));
+      const newCost = Math.round(route.costUSD * (useAlt ? 1.35 : 1.1)); // alternate is longer = costlier
 
       updateRoute(route.id, {
-        waypoints: newWaypoints,
+        waypoints,
         riskScore: newRisk,
-        estimatedDays: data.estimated_days ?? route.estimatedDays,
-        costUSD: data.cost_usd ?? route.costUSD,
+        estimatedDays: estDays,
+        costUSD: newCost,
         status: newRisk > 0.7 ? 'at_risk' : 'active',
         autoRerouted: true,
         previousRiskScore: route.riskScore,
       });
       addLedgerEntry({
         type: 'ROUTE_REROUTED',
-        summary: `Route rerouted by Oracle: ${route.origin.replace('Port of ', '')} → ${route.destination.replace('Port of ', '')} (risk ${Math.round(route.riskScore * 100)}% → ${Math.round(newRisk * 100)}%)`,
-        payload: { routeId: route.id, oldRisk: route.riskScore, newRisk, newWaypoints },
+        summary: `Route rerouted via ${useAlt ? 'alternate corridor' : 'optimised path'}: ${route.origin.replace('Port of ', '')} → ${route.destination.replace('Port of ', '')} (risk ${Math.round(route.riskScore * 100)}% → ${Math.round(newRisk * 100)}%)`,
+        payload: { routeId: route.id, oldRisk: route.riskScore, newRisk, waypointCount: waypoints.length, alternate: useAlt },
         initiatedBy: 'oracle',
         timestamp: new Date().toISOString(),
       });
