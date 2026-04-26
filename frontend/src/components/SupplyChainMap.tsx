@@ -15,7 +15,9 @@ const INITIAL_VIEW_STATE = {
 };
 
 export default function SupplyChainMap() {
-  const { vessels, routes, disruptions } = useSupplyChainStore();
+  const vessels = useSupplyChainStore(state => state.vessels);
+  const routes = useSupplyChainStore(state => state.routes);
+  const disruptions = useSupplyChainStore(state => state.disruptions);
 
   const layers = useMemo(() => [
     new HeatmapLayer({

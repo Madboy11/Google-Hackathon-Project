@@ -5,7 +5,8 @@ import { FixedSizeList as List } from 'react-window';
 import AutoSizer from 'react-virtualized-auto-sizer';
 
 export default function AgentPanel() {
-  const { agentMessages, addAgentMessage } = useSupplyChainStore();
+  const agentMessages = useSupplyChainStore(state => state.agentMessages);
+  const addAgentMessage = useSupplyChainStore(state => state.addAgentMessage);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const listRef = useRef<List>(null);

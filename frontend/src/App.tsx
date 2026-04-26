@@ -6,7 +6,8 @@ import SystemStatusBar from './components/SystemStatusBar';
 import { useSupplyChainStore } from './store/supplyChainStore';
 
 function App() {
-  const { setSystemStatus, setVessels } = useSupplyChainStore();
+  const setSystemStatus = useSupplyChainStore(state => state.setSystemStatus);
+  const setVessels = useSupplyChainStore(state => state.setVessels);
 
   useEffect(() => {
     // Health polling

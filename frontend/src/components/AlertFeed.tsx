@@ -5,7 +5,7 @@ import { useSupplyChainStore } from '../store/supplyChainStore';
 import { AlertTriangle } from 'lucide-react';
 
 export default function AlertFeed() {
-  const { disruptions } = useSupplyChainStore();
+  const disruptions = useSupplyChainStore(state => state.disruptions);
 
   const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
     const alert = disruptions[index];

@@ -3,7 +3,10 @@ import { useSupplyChainStore } from '../store/supplyChainStore';
 import { Activity, Anchor, Route, AlertCircle } from 'lucide-react';
 
 export default function SystemStatusBar() {
-  const { systemStatus, vessels, disruptions, routes } = useSupplyChainStore();
+  const systemStatus = useSupplyChainStore(state => state.systemStatus);
+  const vessels = useSupplyChainStore(state => state.vessels);
+  const disruptions = useSupplyChainStore(state => state.disruptions);
+  const routes = useSupplyChainStore(state => state.routes);
 
   return (
     <div className="h-12 shrink-0 bg-background border-b border-gray-800 flex items-center justify-between px-4 text-sm text-text-primary">
