@@ -1,5 +1,7 @@
 import React from 'react';
+// @ts-ignore
 import { FixedSizeList as List } from 'react-window';
+// @ts-ignore
 import AutoSizer from 'react-virtualized-auto-sizer';
 import { useSupplyChainStore } from '../store/supplyChainStore';
 import { AlertTriangle } from 'lucide-react';
@@ -32,7 +34,7 @@ export default function AlertFeed() {
           <div className="p-4 text-sm text-text-muted text-center">No active disruptions</div>
         ) : (
           <AutoSizer>
-            {({ height, width }) => (
+            {({ height, width }: { height: number, width: number }) => (
               <List
                 height={height}
                 itemCount={disruptions.length}

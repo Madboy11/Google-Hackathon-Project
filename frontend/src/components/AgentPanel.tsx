@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSupplyChainStore } from '../store/supplyChainStore';
 import { Send, Bot, User } from 'lucide-react';
+// @ts-ignore
 import { FixedSizeList as List } from 'react-window';
+// @ts-ignore
 import AutoSizer from 'react-virtualized-auto-sizer';
 
 export default function AgentPanel() {
@@ -95,7 +97,7 @@ export default function AgentPanel() {
           <div className="p-8 text-center text-text-muted text-sm">NEXUS is ready. Ask about risk in any region.</div>
         ) : (
           <AutoSizer>
-            {({ height, width }) => (
+            {({ height, width }: { height: number, width: number }) => (
               <List
                 ref={listRef}
                 height={height}
