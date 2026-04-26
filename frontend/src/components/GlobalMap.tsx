@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ScatterplotLayer, ArcLayer, TextLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { Map } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -12,6 +12,7 @@ interface RouteData {
   route_id?: string;
   originLabel?: string;
   destLabel?: string;
+  progress?: number;
 }
 
 interface RiskNode {
@@ -109,24 +110,54 @@ export const GlobalMap = ({ routes = [], riskNodes = [] }: GlobalMapProps) => {
       },
     }),
 
-    // Route arcs — directional gradient (bright cyan at source → dim blue at destination)
-    new ArcLayer({
-      id: 'freight-routes',
+    // Background track (faded)
+    new LineLayer({
+      id: 'freight-routes-bg',
       data: routes,
       getSourcePosition: (d: RouteData) => d.origin,
       getTargetPosition: (d: RouteData) => d.destination,
-      getSourceColor: [0, 220, 255, 220],   // Bright cyan = ORIGIN
-      getTargetColor: [130, 80, 255, 120],   // Faded purple = DESTINATION
-      getWidth: 3,
-      getHeight: 0.4,
-      greatCircle: true,
-      updateTriggers: {
-        getSourcePosition: routes.map((r) => r.origin.join(',')),
-        getTargetPosition: routes.map((r) => r.destination.join(',')),
+      getColor: [130, 80, 255, 40],
+      getWidth: 2,
+    }),
+
+    // Active track (drawn dynamically based on progress)
+    new LineLayer({
+      id: 'freight-routes-active',
+      data: routes,
+      getSourcePosition: (d: RouteData) => d.origin,
+      getTargetPosition: (d: RouteData) => {
+        const t = d.progress || 0;
+        return [
+          d.origin[0] + (d.destination[0] - d.origin[0]) * t,
+          d.origin[1] + (d.destination[1] - d.origin[1]) * t,
+        ] as [number, number];
       },
-      transitions: {
-        getSourcePosition: { duration: 1500, easing: (t: number) => t * (2 - t) },
-        getTargetPosition: { duration: 1500, easing: (t: number) => t * (2 - t) },
+      getColor: [0, 220, 255, 200],
+      getWidth: 3,
+      updateTriggers: {
+        getTargetPosition: routes.map((r) => r.progress || 0),
+      },
+    }),
+
+    // Ships moving along routes (at the head of the active track)
+    new ScatterplotLayer({
+      id: 'ships',
+      data: routes,
+      getPosition: (d: RouteData) => {
+        const t = d.progress || 0;
+        return [
+          d.origin[0] + (d.destination[0] - d.origin[0]) * t,
+          d.origin[1] + (d.destination[1] - d.origin[1]) * t,
+        ] as [number, number];
+      },
+      getFillColor: [255, 255, 255, 255],
+      getRadius: 40000,
+      pickable: true,
+      stroked: true,
+      getLineColor: [0, 255, 255, 255],
+      lineWidthMinPixels: 2,
+      updateTriggers: {
+        getPosition: routes.map((r) => r.progress || 0),
       },
     }),
 

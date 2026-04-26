@@ -1,87 +1,65 @@
-import { useState } from 'react';
-import axios from 'axios';
+import { useNexusContext } from '../context/NexusContext';
 
-const BASE = import.meta.env?.VITE_API_URL || 'http://localhost:8000';
+export const DemoControls = () => {
+  const { simulationPhase } = useNexusContext();
 
-interface DemoControlsProps {
-  onTriggerEvent?: () => void;
-}
-
-type DemoPhase = 'idle' | 'injecting' | 'rerouting' | 'resolved';
-
-export const DemoControls = ({ onTriggerEvent }: DemoControlsProps) => {
-  const [phase, setPhase] = useState<DemoPhase>('idle');
-
-  const injectRedSeaClosure = async () => {
-    setPhase('injecting');
-    try {
-      await axios.post(`${BASE}/risk-score`, {
-        node_id: 'RED_SEA_CORRIDOR',
-        time_horizon: '72h',
-      });
-    } catch {
-      console.warn('[DEMO] Backend unreachable — mock mode');
-    }
-
-    setTimeout(() => {
-      setPhase('rerouting');
-      if (onTriggerEvent) onTriggerEvent();
-      setTimeout(() => setPhase('resolved'), 2000);
-    }, 1500);
+  const phaseLabel: Record<string, string> = {
+    nominal: 'NOMINAL OPERATIONS',
+    crisis: 'CRITICAL ANOMALY DETECTED',
+    ai_rerouting: 'AI NAVIGATOR REROUTING . . .',
+    system_review: 'SYSTEM REVIEW & BUFFER ADJUST',
   };
 
-  const reset = () => setPhase('idle');
-
-  const phaseLabel: Record<DemoPhase, string> = {
-    idle: 'INJECT RED SEA CLOSURE',
-    injecting: 'ORACLE ANALYZING . . .',
-    rerouting: 'NAVIGATOR REROUTING . . .',
-    resolved: 'SCENARIO RESOLVED',
-  };
+  const activeStep = ['nominal', 'crisis', 'ai_rerouting', 'system_review'].indexOf(simulationPhase);
 
   return (
     <div className="nexus-panel p-5">
-      <div className="nexus-label mb-3">SCENARIO INJECTION</div>
+      <div className="flex justify-between items-center mb-3">
+        <div className="nexus-label text-cyan-400">SIMULATION HUD</div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full animate-pulse bg-cyan-400"></div>
+          <span className="text-[10px] font-grotesk tracking-widest text-cyan-500">AUTONOMOUS</span>
+        </div>
+      </div>
+      
       <p className="text-[11px] font-inter text-nexus-text-secondary mb-4 leading-relaxed">
-        Simulate a geopolitical disruption in the Red Sea corridor.
-        ORACLE scores risk → NAVIGATOR reroutes → BUFFER adjusts stock.
+        The simulation engine continuously generates real-world routing scenarios, injects geopolitical risks, and demonstrates AI-driven orchestration across all modules.
       </p>
 
-      <button
-        id="demo-inject-btn"
-        onClick={phase === 'resolved' ? reset : injectRedSeaClosure}
-        disabled={phase === 'injecting' || phase === 'rerouting'}
-        className={`w-full font-grotesk text-[11px] tracking-[0.15em] font-semibold py-3 px-4 border transition-all duration-300 ${
-          phase === 'idle'
-            ? 'bg-nexus-bg text-nexus-accent border-nexus-border-active hover:bg-nexus-elevated hover:border-nexus-muted'
-            : phase === 'resolved'
-            ? 'bg-nexus-bg text-nexus-muted border-nexus-border cursor-pointer hover:text-nexus-accent'
-            : 'bg-nexus-bg text-nexus-subtle border-nexus-border cursor-wait'
+      <div
+        className={`w-full text-center font-grotesk text-[11px] tracking-[0.15em] font-semibold py-3 px-4 border transition-all duration-300 ${
+          simulationPhase === 'nominal'
+            ? 'bg-nexus-bg text-emerald-400 border-emerald-500/50'
+            : simulationPhase === 'crisis'
+            ? 'bg-red-900/20 text-red-400 border-red-500/50'
+            : simulationPhase === 'ai_rerouting'
+            ? 'bg-amber-900/20 text-amber-400 border-amber-500/50'
+            : 'bg-cyan-900/20 text-cyan-400 border-cyan-500/50'
         }`}
       >
-        {phase === 'resolved' ? '↻ RESET SCENARIO' : phaseLabel[phase]}
-      </button>
+        {phaseLabel[simulationPhase] || 'INITIALIZING'}
+      </div>
 
       {/* Phase Progress Bar */}
-      <div className="mt-4 flex gap-px">
-        {(['injecting', 'rerouting', 'resolved'] as DemoPhase[]).map((step) => (
+      <div className="mt-4 flex gap-1">
+        {['nominal', 'crisis', 'ai_rerouting', 'system_review'].map((step, idx) => (
           <div
             key={step}
             className={`h-[2px] flex-1 transition-all duration-700 ${
-              phase === step || 
-              (phase === 'rerouting' && step === 'injecting') ||
-              (phase === 'resolved' && (step === 'injecting' || step === 'rerouting'))
-                ? 'bg-white'
+              idx <= activeStep
+                ? idx === 0 ? 'bg-emerald-500' : idx === 1 ? 'bg-red-500' : idx === 2 ? 'bg-amber-500' : 'bg-cyan-500'
                 : 'bg-nexus-border'
             }`}
           />
         ))}
       </div>
       <div className="mt-1.5 flex justify-between text-[8px] font-grotesk tracking-[0.2em] text-nexus-muted">
+        <span>NOMINAL</span>
         <span>ORACLE</span>
-        <span>NAVIGATOR</span>
+        <span>NAV</span>
         <span>BUFFER</span>
       </div>
     </div>
   );
 };
+

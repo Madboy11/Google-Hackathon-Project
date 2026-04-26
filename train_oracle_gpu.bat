@@ -12,13 +12,14 @@ echo intelligence model using your NVIDIA RTX 3050 Laptop GPU.
 echo.
 echo Step 1: Checking Python environment...
 
-set PYTHON_EXE=D:\Python311\python.exe
+set PYTHON_EXE=python
 set VENV_PATH=venv
 
 :: Check if the base Python exists
-if not exist "%PYTHON_EXE%" (
+%PYTHON_EXE% --version >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
     color 0C
-    echo [!] ERROR: Python is not installed at %PYTHON_EXE%.
+    echo [!] ERROR: Python is not installed or not in PATH.
     pause
     exit /b
 )
@@ -26,7 +27,7 @@ if not exist "%PYTHON_EXE%" (
 :: Step 2: Ensure venv exists
 if not exist "%VENV_PATH%\Scripts\python.exe" (
     echo Step 2: Creating virtual environment...
-    "%PYTHON_EXE%" -m virtualenv %VENV_PATH%
+    "%PYTHON_EXE%" -m venv %VENV_PATH%
     if %ERRORLEVEL% NEQ 0 (
         color 0C
         echo [!] ERROR: Failed to create virtual environment.
@@ -46,8 +47,7 @@ echo ==========================================================
 echo    HARDWARE ENVIRONMENT PREPARED. INITIALIZING TRAINING.
 echo ==========================================================
 echo.
-echo [MEMORY PROTECTION ON] Limiting VRAM fragmentation for 4GB constraints...
-set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+echo [MEMORY PROTECTION ON] Relying on PyTorch default Graceful GC...
 echo Please do not close this window until the training is complete!
 echo.
 

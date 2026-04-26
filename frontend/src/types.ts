@@ -5,6 +5,7 @@ export interface RouteData {
   route_id?: string;
   originLabel?: string;
   destLabel?: string;
+  progress?: number; // 0.0 to 1.0 mapping the ship's current location relative to start and end points
 }
 
 export interface RiskNode {
