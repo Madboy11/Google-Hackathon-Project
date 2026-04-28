@@ -73,7 +73,7 @@ function AddRouteModal({ onClose }: { onClose: () => void }) {
       let riskScore = 0.3;
       let costUSD = 45000 + estDays * 2800;
       try {
-        const res = await fetch('/mcp/tools/call', {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/mcp/tools/call`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tool: 'optimise_route', args: { origin_port: origin, destination_port: dest, cargo_type: cargo.toLowerCase(), departure_date: departure } }),

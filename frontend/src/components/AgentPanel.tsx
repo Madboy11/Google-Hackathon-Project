@@ -44,7 +44,7 @@ export default function AgentPanel() {
 
     try {
       const response = await fetch(
-        `/orch/agent/stream?query=${encodeURIComponent(query)}`
+        `${import.meta.env.VITE_API_URL || ''}/orch/agent/stream?query=${encodeURIComponent(query)}`
       );
       if (!response.body) throw new Error('No stream body');
 

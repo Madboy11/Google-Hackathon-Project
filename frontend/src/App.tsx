@@ -46,7 +46,7 @@ export default function App() {
 
   useEffect(() => {
     // 1. Fetch live threats from backend ORACLE once on mount
-    fetch('/api/threats/active')
+    fetch(`${import.meta.env.VITE_API_URL || ''}/api/threats/active`)
       .then(r => r.json())
       .then(data => {
         if (data.threats && data.threats.length > 0) {
@@ -65,7 +65,7 @@ export default function App() {
     // 2. Poll health
     const poll = async () => {
       try {
-        const res = await fetch('/api/health');
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/health`);
         if (res.ok) {
           useSupplyChainStore.setState({ systemStatus: { apiHealth: 'Online', lastUpdated: new Date().toISOString() } });
         }
@@ -74,8 +74,11 @@ export default function App() {
     poll();
     const t = setInterval(poll, 10000);
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    const backendUrl = import.meta.env.VITE_API_URL || '';
+    const isHttps = backendUrl.startsWith('https://') || window.location.protocol === 'https:';
+    const wsProtocol = isHttps ? 'wss:' : 'ws:';
+    const wsHost = backendUrl ? backendUrl.replace(/^https?:\/\//, '') : window.location.host;
+    const ws = new WebSocket(`${wsProtocol}//${wsHost}/ws`);
     // @ts-ignore
     window.__ws = ws; // Expose for supplyChainStore
 

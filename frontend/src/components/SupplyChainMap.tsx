@@ -86,7 +86,7 @@ export default function SupplyChainMap() {
   const [weatherKey, setWeatherKey] = useState<string>('');
 
   useEffect(() => {
-    fetch('/api/config/weather-key')
+    fetch(`${import.meta.env.VITE_API_URL || ''}/api/config/weather-key`)
       .then(r => r.json())
       .then(d => { if (d.key) setWeatherKey(d.key); })
       .catch(() => {});
