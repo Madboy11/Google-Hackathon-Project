@@ -310,10 +310,7 @@ async def tools_health():
     return {"status": "ok", "tools": list(_TOOL_REGISTRY.keys())}
 
 
-from prefect import flow
-
-@flow(name="nexus-mcp-server")
-def main():
+if __name__ == "__main__":
     import uvicorn
     import threading
 
@@ -326,7 +323,3 @@ def main():
 
     # FastMCP SSE on port 8004 (main thread)
     mcp.run(transport="sse", port=8004)
-
-
-if __name__ == "__main__":
-    main()

@@ -10,6 +10,7 @@ import websockets
 from dotenv import load_dotenv
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 app = FastAPI(title="Nexus WebSocket Proxy & Health Endpoint")
 
@@ -42,10 +43,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def aisstream_proxy_loop():
     api_key = os.getenv("AISSTREAM_API_KEY")
+    logging.info(f"AISStream API key loaded: {'YES (' + api_key[:8] + '...)' if api_key and 'your_' not in api_key else 'NO / placeholder'}")
     
+    msg_count = 0
+
     while True:
         if not api_key or "your_" in api_key:
             # Fallback mock heartbeat if no API key
+            logging.warning("AISStream: No valid API key — sending mock heartbeats.")
             if connected_clients:
                 mock_data = {"type": "heartbeat", "source": "fallback_proxy", "timestamp": time.time()}
                 disconnected = set()
@@ -59,17 +64,39 @@ async def aisstream_proxy_loop():
             continue
             
         try:
-            async with websockets.connect("wss://stream.aisstream.io/v0/stream") as ws:
+            logging.info("AISStream: Connecting to wss://stream.aisstream.io/v0/stream ...")
+            async with websockets.connect(
+                "wss://stream.aisstream.io/v0/stream",
+                ping_interval=None,
+                ping_timeout=None,
+                open_timeout=20,
+                close_timeout=5,
+            ) as ws:
+                # IMPORTANT: AISStream expects [latitude, longitude] order!
                 subscribe_message = {
                     "APIKey": api_key,
-                    "BoundingBoxes": [[[-180, -90], [180, 90]]], # Global coverage
+                    "BoundingBoxes": [[[-90, -180], [90, 180]]],  # Global coverage [lat, lon]
                     "FiltersShipMMSI": [],
                     "FilterMessageTypes": ["PositionReport"]
                 }
                 await ws.send(json.dumps(subscribe_message))
+                logging.info("AISStream: Subscription message sent. Waiting for data...")
                 
                 while True:
                     message = await ws.recv()
+                    msg_count += 1
+                    if msg_count <= 3 or msg_count % 100 == 0:
+                        logging.info(f"AISStream: Received message #{msg_count} | {len(connected_clients)} browser client(s) connected")
+                    
+                    # Check if server returned an error
+                    try:
+                        parsed = json.loads(message)
+                        if parsed.get("ERROR") or parsed.get("error"):
+                            logging.error(f"AISStream server error: {message}")
+                            break
+                    except:
+                        pass
+                    
                     if connected_clients:
                         disconnected = set()
                         for client in connected_clients:
@@ -78,8 +105,11 @@ async def aisstream_proxy_loop():
                             except:
                                 disconnected.add(client)
                         connected_clients.difference_update(disconnected)
+        except websockets.exceptions.ConnectionClosedError as e:
+            logging.error(f"AISStream connection closed by server: code={e.code} reason='{e.reason}' — API key may be invalid or revoked")
+            await asyncio.sleep(5)
         except Exception as e:
-            logging.error(f"AISStream connection error: {e}")
+            logging.error(f"AISStream connection error: {type(e).__name__}: {e}")
             await asyncio.sleep(5)
 
 @app.on_event("startup")

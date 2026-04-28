@@ -67,8 +67,7 @@ export default function App() {
       try {
         const res = await fetch('/api/health');
         if (res.ok) {
-          const d = await res.json();
-          useSupplyChainStore.setState({ threats: d.threats, systemStatus: { apiHealth: 'Online', lastUpdated: new Date().toISOString() } });
+          useSupplyChainStore.setState({ systemStatus: { apiHealth: 'Online', lastUpdated: new Date().toISOString() } });
         }
       } catch { setSystemStatus({ apiHealth: 'Offline', lastUpdated: new Date().toISOString() }); }
     };
